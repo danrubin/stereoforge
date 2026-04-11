@@ -1,0 +1,1660 @@
+# StereoForge — Implementation Plan (Part A: Foundation)
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Build the HTML/CSS shell and Canvas rendering engine that draws a stereoscopic side-by-side preview from a scene state object.
+
+**Architecture:** Single `index.html` file. Scene state is a plain JS object. A `drawScene()` function renders all elements into both L and R panels on a single `<canvas>`, applying each element's depth offset as a horizontal shift. The preview canvas is sized at output resolution and CSS-scaled to fit the viewport.
+
+**Tech Stack:** Vanilla HTML/CSS/JS, Canvas 2D API, no build step, no dependencies.
+
+---
+
+## File Structure
+
+One file, built incrementally across all tasks:
+
+- Create: `index.html` — the entire application
+
+Each task adds sections to the `<script>` block in order. Code is organised with `// === SECTION ===` comment headers so later tasks can insert at the right location.
+
+---
+
+### Task 1: HTML/CSS Shell
+
+**Files:**
+- Create: `index.html`
+
+- [ ] **Step 1: Create `index.html` with the complete dark UI layout**
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>StereoForge</title>
+  <style>
+    :root {
+      --bg: #111111;
+      --panel: #1c1c1c;
+      --surface: #252525;
+      --surface2: #2a2a2a;
+      --border: #2a2a2a;
+      --border-active: #383838;
+      --accent: #3a7bd5;
+      --accent-light: #4a9eff;
+      --text-primary: #cccccc;
+      --text-secondary: #888888;
+      --text-muted: #555555;
+      --canvas-bg: #171717;
+      --danger: #cc4444;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text-primary);
+      font-size: 11px;
+    }
+
+    /* ── App shell ── */
+    #app { display: flex; flex-direction: column; height: 100vh; }
+
+    /* ── Top bar ── */
+    #topbar {
+      height: 38px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 10px;
+      gap: 8px;
+      flex-shrink: 0;
+      z-index: 10;
+    }
+    .wordmark {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      color: var(--text-primary);
+      white-space: nowrap;
+    }
+    .topbar-sep { flex: 1; }
+    .topbar-label {
+      font-size: 10px;
+      color: var(--text-secondary);
+    }
+    select.topbar-select {
+      background: var(--surface);
+      border: 1px solid var(--border-active);
+      border-radius: 4px;
+      color: var(--text-primary);
+      padding: 3px 6px;
+      font-size: 10px;
+      cursor: pointer;
+      outline: none;
+    }
+    select.topbar-select:focus { border-color: var(--accent); }
+    input.topbar-number {
+      background: var(--surface);
+      border: 1px solid var(--border-active);
+      border-radius: 4px;
+      color: var(--text-primary);
+      padding: 3px 6px;
+      font-size: 10px;
+      width: 60px;
+      outline: none;
+      display: none;
+    }
+    input.topbar-number:focus { border-color: var(--accent); }
+    input[type="color"].topbar-color {
+      width: 24px;
+      height: 24px;
+      border: 1px solid var(--border-active);
+      border-radius: 3px;
+      padding: 1px;
+      background: none;
+      cursor: pointer;
+    }
+    .btn {
+      border: none;
+      border-radius: 4px;
+      padding: 4px 10px;
+      font-size: 10px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover { background: #4a8ae5; }
+    .btn-secondary {
+      background: var(--surface2);
+      border: 1px solid var(--border-active);
+      color: var(--text-primary);
+    }
+    .btn-secondary:hover { background: var(--surface); }
+    .btn-danger { background: var(--danger); color: #fff; }
+
+    /* ── Workspace ── */
+    #workspace { flex: 1; display: flex; overflow: hidden; }
+
+    /* ── Left toolbar ── */
+    #toolbar {
+      width: 44px;
+      background: var(--panel);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 8px 0;
+      gap: 3px;
+      flex-shrink: 0;
+      overflow-y: auto;
+    }
+    .tool-btn {
+      width: 30px;
+      height: 30px;
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 5px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: var(--text-secondary);
+      font-size: 12px;
+      font-weight: 700;
+      padding: 0;
+    }
+    .tool-btn:hover { background: var(--surface2); border-color: var(--border-active); color: var(--text-primary); }
+    .tool-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .toolbar-sep {
+      width: 24px;
+      height: 1px;
+      background: var(--border);
+      margin: 3px 0;
+    }
+
+    /* ── Canvas area ── */
+    #canvas-area {
+      flex: 1;
+      background: var(--canvas-bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      position: relative;
+    }
+    #preview-canvas {
+      display: block;
+      cursor: crosshair;
+      image-rendering: pixelated;
+    }
+
+    /* ── Right panel ── */
+    #right-panel {
+      width: 220px;
+      background: var(--panel);
+      border-left: 1px solid var(--border);
+      overflow-y: auto;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+    }
+    .panel-section {
+      border-bottom: 1px solid var(--border);
+      padding: 10px;
+    }
+    .panel-section-title {
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+    .panel-row {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 4px;
+      align-items: center;
+    }
+    .panel-row:last-child { margin-bottom: 0; }
+    .panel-field {
+      flex: 1;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 4px 6px;
+      position: relative;
+    }
+    .panel-field-label {
+      font-size: 7px;
+      color: var(--text-muted);
+      margin-bottom: 2px;
+      text-transform: uppercase;
+    }
+    .panel-field input[type="number"],
+    .panel-field input[type="text"] {
+      width: 100%;
+      background: none;
+      border: none;
+      outline: none;
+      color: var(--text-primary);
+      font-size: 11px;
+      padding: 0;
+      font-family: inherit;
+    }
+    /* Remove number input spinners */
+    .panel-field input[type="number"]::-webkit-inner-spin-button,
+    .panel-field input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; }
+    .panel-field input[type="number"] { -moz-appearance: textfield; }
+
+    /* Depth slider */
+    .depth-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 8px;
+      color: var(--text-muted);
+      margin-bottom: 3px;
+    }
+    .depth-value {
+      font-size: 10px;
+      color: var(--accent-light);
+      font-weight: 600;
+      text-align: center;
+    }
+    .depth-slider-wrap {
+      position: relative;
+      height: 6px;
+      background: var(--surface2);
+      border-radius: 3px;
+      margin: 4px 0;
+    }
+    .depth-slider-track {
+      position: absolute;
+      top: 0; bottom: 0;
+      background: #2a4a7f;
+      border-radius: 3px;
+    }
+    input[type="range"].depth-range {
+      position: absolute;
+      top: -7px;
+      left: 0;
+      width: 100%;
+      opacity: 0;
+      cursor: pointer;
+      height: 20px;
+      margin: 0;
+    }
+    .depth-thumb {
+      position: absolute;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 14px;
+      height: 18px;
+      background: var(--accent-light);
+      border-radius: 3px;
+      pointer-events: none;
+    }
+
+    /* Style toggle */
+    .style-toggle {
+      display: flex;
+      gap: 3px;
+      margin-bottom: 6px;
+    }
+    .style-toggle-btn {
+      flex: 1;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 4px 3px;
+      text-align: center;
+      font-size: 8px;
+      color: var(--text-secondary);
+      cursor: pointer;
+    }
+    .style-toggle-btn.active {
+      background: var(--surface2);
+      border-color: var(--accent);
+      color: var(--text-primary);
+    }
+
+    /* Color row */
+    .color-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 0;
+    }
+    .color-swatch {
+      width: 20px;
+      height: 20px;
+      border-radius: 3px;
+      border: 1px solid var(--border-active);
+      flex-shrink: 0;
+      cursor: pointer;
+    }
+    .color-swatch-input {
+      width: 20px;
+      height: 20px;
+      border-radius: 3px;
+      border: 1px solid var(--border-active);
+      flex-shrink: 0;
+      cursor: pointer;
+      padding: 1px;
+    }
+    .color-label { color: var(--text-secondary); font-size: 9px; flex: 1; }
+
+    /* Element action buttons */
+    .action-btns { display: flex; flex-wrap: wrap; gap: 3px; }
+    .action-btn {
+      background: var(--surface);
+      border: 1px solid var(--border-active);
+      border-radius: 3px;
+      padding: 3px 7px;
+      font-size: 9px;
+      color: var(--text-secondary);
+      cursor: pointer;
+    }
+    .action-btn:hover { color: var(--text-primary); border-color: var(--accent); }
+    .action-btn.danger { color: var(--danger); }
+    .action-btn.danger:hover { border-color: var(--danger); }
+
+    /* Layers list */
+    .layer-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 7px;
+      border-radius: 3px;
+      margin-bottom: 2px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      cursor: pointer;
+      user-select: none;
+    }
+    .layer-item:hover { border-color: var(--border-active); }
+    .layer-item.selected { background: #3a7bd520; border-color: #3a7bd550; }
+    .layer-icon { font-size: 9px; color: var(--text-muted); flex-shrink: 0; width: 12px; }
+    .layer-name { flex: 1; font-size: 10px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .layer-item.selected .layer-name { color: var(--text-primary); }
+    .layer-vis {
+      font-size: 10px;
+      color: var(--text-muted);
+      flex-shrink: 0;
+      cursor: pointer;
+    }
+
+    /* No-selection placeholder */
+    #no-selection {
+      padding: 16px 10px;
+      font-size: 10px;
+      color: var(--text-muted);
+      text-align: center;
+    }
+
+    /* Modal overlay */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    .modal-overlay.hidden { display: none; }
+    .modal {
+      background: var(--panel);
+      border: 1px solid var(--border-active);
+      border-radius: 8px;
+      padding: 16px;
+      width: 480px;
+      max-width: 90vw;
+    }
+    .modal-title { font-size: 13px; font-weight: 600; margin-bottom: 12px; }
+    .modal textarea {
+      width: 100%;
+      height: 180px;
+      background: var(--bg);
+      border: 1px solid var(--border-active);
+      border-radius: 4px;
+      color: var(--text-primary);
+      font-family: monospace;
+      font-size: 11px;
+      padding: 8px;
+      resize: vertical;
+      outline: none;
+    }
+    .modal-btns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
+
+    /* Inline text editor */
+    #text-editor-overlay {
+      position: absolute;
+      pointer-events: none;
+      display: none;
+      z-index: 5;
+    }
+    #text-editor {
+      position: absolute;
+      background: transparent;
+      border: 1px dashed var(--accent);
+      color: transparent;
+      caret-color: var(--accent);
+      outline: none;
+      resize: none;
+      font-family: inherit;
+      pointer-events: all;
+    }
+
+    /* Mobile layout */
+    @media (max-width: 768px) {
+      #toolbar {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        height: auto;
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: center;
+        padding: 6px;
+        border-right: none;
+        border-top: 1px solid var(--border);
+        z-index: 20;
+      }
+      #workspace { flex-direction: column; }
+      #canvas-area { flex: 1; }
+      #right-panel {
+        position: fixed;
+        bottom: -100%;
+        left: 0;
+        width: 100%;
+        max-height: 50vh;
+        border-left: none;
+        border-top: 1px solid var(--border);
+        transition: bottom 0.25s ease;
+        z-index: 15;
+      }
+      #right-panel.open { bottom: 52px; }
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <!-- Top bar -->
+  <div id="topbar">
+    <span class="wordmark">STEREOFORGE</span>
+    <span class="topbar-label">Size:</span>
+    <select class="topbar-select" id="preset-select">
+      <option value="ig-portrait">Instagram Portrait 1080×1350</option>
+      <option value="ig-square">Instagram Square 1080×1080</option>
+      <option value="twitter">Twitter/X 1200×675</option>
+      <option value="facebook">Facebook 1200×630</option>
+      <option value="custom">Custom…</option>
+    </select>
+    <input class="topbar-number" type="number" id="custom-w" placeholder="W" min="100" max="6000">
+    <input class="topbar-number" type="number" id="custom-h" placeholder="H" min="100" max="6000">
+    <span class="topbar-label">BG:</span>
+    <input type="color" class="topbar-color" id="bg-color-input" value="#000000" title="Background Color">
+    <div class="topbar-sep"></div>
+    <button class="btn btn-primary" id="btn-export">Export PNG</button>
+    <button class="btn btn-secondary" id="btn-save">Save</button>
+    <button class="btn btn-secondary" id="btn-load">Load</button>
+    <input type="file" id="load-file-input" accept=".json" style="display:none">
+  </div>
+
+  <!-- Workspace -->
+  <div id="workspace">
+
+    <!-- Left toolbar -->
+    <div id="toolbar">
+      <button class="tool-btn active" data-tool="select" title="Select (V)">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <path d="M2 1.5L8.5 11l-2-3.5L2 1.5z" fill="currentColor"/>
+          <path d="M2 1.5l10 4-4.5 1L11 11l-2-1L6.5 7.5 2 1.5z" fill="currentColor" opacity="0.4"/>
+        </svg>
+      </button>
+      <div class="toolbar-sep"></div>
+      <button class="tool-btn" data-tool="rect" title="Rectangle">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <rect x="1.5" y="3" width="11" height="8" stroke="currentColor" stroke-width="1.5" rx="1"/>
+        </svg>
+      </button>
+      <button class="tool-btn" data-tool="ellipse" title="Ellipse">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <ellipse cx="7" cy="7" rx="5.5" ry="4" stroke="currentColor" stroke-width="1.5"/>
+        </svg>
+      </button>
+      <button class="tool-btn" data-tool="triangle" title="Triangle">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <path d="M7 1.5L13 12.5H1L7 1.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+        </svg>
+      </button>
+      <button class="tool-btn" data-tool="polygon" title="Polygon">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <path d="M7 1L12.5 4.5V9.5L7 13L1.5 9.5V4.5L7 1Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+        </svg>
+      </button>
+      <button class="tool-btn" data-tool="line" title="Line">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <line x1="1.5" y1="12.5" x2="12.5" y2="1.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <button class="tool-btn" data-tool="arrow" title="Arrow">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <line x1="1.5" y1="7" x2="10" y2="7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          <path d="M8 4L12.5 7L8 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        </svg>
+      </button>
+      <div class="toolbar-sep"></div>
+      <button class="tool-btn" data-tool="text" title="Text (T)" style="font-weight:700;font-size:13px;">T</button>
+      <button class="tool-btn" data-tool="svg" title="SVG Import" style="font-size:8px;font-weight:700;letter-spacing:-0.5px;">&lt;/&gt;</button>
+    </div>
+
+    <!-- Canvas area -->
+    <div id="canvas-area">
+      <canvas id="preview-canvas"></canvas>
+      <div id="text-editor-overlay">
+        <textarea id="text-editor" rows="3"></textarea>
+      </div>
+    </div>
+
+    <!-- Right panel -->
+    <div id="right-panel">
+      <div id="no-selection">Select an element to edit its properties</div>
+
+      <!-- Transform section -->
+      <div class="panel-section hidden" id="section-transform">
+        <div class="panel-section-title">Transform</div>
+        <div class="panel-row">
+          <div class="panel-field">
+            <div class="panel-field-label">X</div>
+            <input type="number" id="prop-x">
+          </div>
+          <div class="panel-field">
+            <div class="panel-field-label">Y</div>
+            <input type="number" id="prop-y">
+          </div>
+        </div>
+        <div class="panel-row">
+          <div class="panel-field">
+            <div class="panel-field-label">W</div>
+            <input type="number" id="prop-w">
+          </div>
+          <div class="panel-field">
+            <div class="panel-field-label">H</div>
+            <input type="number" id="prop-h">
+          </div>
+        </div>
+        <div class="panel-row">
+          <div class="panel-field" style="flex:0.5">
+            <div class="panel-field-label">Rotation °</div>
+            <input type="number" id="prop-rot" step="1">
+          </div>
+        </div>
+      </div>
+
+      <!-- Depth section -->
+      <div class="panel-section hidden" id="section-depth">
+        <div class="panel-section-title">Stereo Depth</div>
+        <div class="depth-labels">
+          <span>← Behind</span>
+          <span class="depth-value" id="depth-readout">0 px</span>
+          <span>Front →</span>
+        </div>
+        <div class="depth-slider-wrap">
+          <div class="depth-slider-track" id="depth-track"></div>
+          <div class="depth-thumb" id="depth-thumb"></div>
+          <input type="range" class="depth-range" id="prop-depth" min="-100" max="100" step="1" value="0">
+        </div>
+        <div class="panel-row" style="margin-top:6px;">
+          <div class="panel-field" style="flex:0.5;">
+            <div class="panel-field-label">Value px</div>
+            <input type="number" id="prop-depth-num" step="1">
+          </div>
+        </div>
+      </div>
+
+      <!-- Style section -->
+      <div class="panel-section hidden" id="section-style">
+        <div class="panel-section-title">Style</div>
+        <div class="style-toggle" id="fill-style-toggle">
+          <div class="style-toggle-btn active" data-style="solid">Solid</div>
+          <div class="style-toggle-btn" data-style="outline">Outline</div>
+          <div class="style-toggle-btn" data-style="both">Both</div>
+        </div>
+        <div class="color-row">
+          <input type="color" class="color-swatch-input" id="prop-fill-color" value="#ffffff" title="Fill color">
+          <span class="color-label">Fill</span>
+        </div>
+        <div class="color-row">
+          <input type="color" class="color-swatch-input" id="prop-stroke-color" value="#ffffff" title="Stroke color">
+          <span class="color-label">Stroke</span>
+        </div>
+        <div class="panel-row" style="margin-top:4px;">
+          <div class="panel-field" style="flex:0.5;">
+            <div class="panel-field-label">Stroke Weight</div>
+            <input type="number" id="prop-stroke-w" min="0.5" step="0.5">
+          </div>
+        </div>
+      </div>
+
+      <!-- Typography section (text elements only) -->
+      <div class="panel-section hidden" id="section-typography">
+        <div class="panel-section-title">Typography</div>
+        <div class="panel-row">
+          <div class="panel-field" style="flex:1;">
+            <div class="panel-field-label">Font Family</div>
+            <select id="prop-font-family" style="width:100%;background:none;border:none;outline:none;color:var(--text-primary);font-size:11px;cursor:pointer;font-family:inherit;"></select>
+          </div>
+        </div>
+        <div id="font-api-note" class="hidden" style="font-size:9px;color:var(--text-muted);margin:2px 0 6px;padding:4px 6px;background:var(--surface);border-radius:3px;">
+          Full system font access requires Chrome or Edge.
+        </div>
+        <div class="panel-row">
+          <div class="panel-field">
+            <div class="panel-field-label">Size px</div>
+            <input type="number" id="prop-font-size" min="6" max="1000">
+          </div>
+          <div class="panel-field">
+            <div class="panel-field-label">Weight</div>
+            <select id="prop-font-weight" style="width:100%;background:none;border:none;outline:none;color:var(--text-primary);font-size:11px;cursor:pointer;font-family:inherit;">
+              <option value="100">Thin</option>
+              <option value="300">Light</option>
+              <option value="400">Regular</option>
+              <option value="500">Medium</option>
+              <option value="600">Semi-Bold</option>
+              <option value="700">Bold</option>
+              <option value="800">Extra-Bold</option>
+              <option value="900">Black</option>
+            </select>
+          </div>
+        </div>
+        <div class="panel-row">
+          <div class="panel-field">
+            <div class="panel-field-label">Letter Spacing</div>
+            <input type="number" id="prop-letter-spacing" step="1">
+          </div>
+          <div class="panel-field">
+            <div class="panel-field-label">Line Height</div>
+            <input type="number" id="prop-line-height" step="0.05" min="0.5" max="5">
+          </div>
+        </div>
+        <div class="panel-row">
+          <div class="panel-field" style="flex:0.6;">
+            <div class="panel-field-label">Align</div>
+            <select id="prop-text-align" style="width:100%;background:none;border:none;outline:none;color:var(--text-primary);font-size:11px;cursor:pointer;font-family:inherit;">
+              <option value="left">Left</option>
+              <option value="center">Center</option>
+              <option value="right">Right</option>
+            </select>
+          </div>
+          <div class="panel-field" style="flex:0.4;display:flex;align-items:center;justify-content:center;">
+            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;">
+              <input type="checkbox" id="prop-italic" style="cursor:pointer;">
+              <span style="font-size:9px;color:var(--text-secondary);font-style:italic;">Italic</span>
+            </label>
+          </div>
+        </div>
+        <!-- Google Fonts picker -->
+        <div style="margin-top:6px;">
+          <div class="panel-section-title" style="margin-bottom:4px;">Google Fonts</div>
+          <select id="gfont-select" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--text-primary);padding:4px;font-size:10px;outline:none;cursor:pointer;"></select>
+        </div>
+        <!-- Custom font input -->
+        <div style="margin-top:8px;">
+          <div class="panel-section-title" style="margin-bottom:4px;">Custom Font</div>
+          <textarea id="custom-font-input" rows="3"
+            placeholder="Paste a <link> tag, @font-face block, or kit URL"
+            style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--text-primary);font-family:monospace;font-size:9px;padding:5px;resize:none;outline:none;"></textarea>
+          <div class="panel-row" style="margin-top:4px;">
+            <button class="btn btn-secondary" style="width:100%;font-size:9px;" id="btn-apply-custom-font">Apply Font</button>
+          </div>
+          <div id="custom-font-status" style="font-size:9px;color:var(--text-muted);margin-top:3px;min-height:14px;"></div>
+        </div>
+      </div>
+
+      <!-- Element actions section -->
+      <div class="panel-section hidden" id="section-actions">
+        <div class="panel-section-title">Element</div>
+        <div class="action-btns">
+          <button class="action-btn" id="btn-fwd">↑ Fwd</button>
+          <button class="action-btn" id="btn-back">↓ Back</button>
+          <button class="action-btn" id="btn-dup">⎘ Dup</button>
+          <button class="action-btn danger" id="btn-del">✕ Del</button>
+          <button class="action-btn" id="btn-vis">👁 Show</button>
+          <button class="action-btn" id="btn-lock">🔓 Lock</button>
+        </div>
+      </div>
+
+      <!-- Layers list section -->
+      <div class="panel-section" id="section-layers" style="flex:1;overflow-y:auto;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <div class="panel-section-title" style="margin-bottom:0;">Layers</div>
+          <button class="action-btn danger" id="btn-clear" style="font-size:8px;padding:2px 5px;">Clear All</button>
+        </div>
+        <div id="layers-list"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SVG Import modal -->
+<div class="modal-overlay hidden" id="svg-modal">
+  <div class="modal">
+    <div class="modal-title">Import SVG</div>
+    <div style="display:flex;gap:8px;margin-bottom:8px;">
+      <button class="btn btn-secondary" id="btn-svg-upload">Upload .svg file</button>
+      <input type="file" id="svg-file-input" accept=".svg" style="display:none">
+      <span style="font-size:10px;color:var(--text-muted);align-self:center;">or paste below</span>
+    </div>
+    <textarea id="svg-paste-area" placeholder="Paste raw SVG markup here…"></textarea>
+    <div class="modal-btns">
+      <button class="btn btn-secondary" id="btn-svg-cancel">Cancel</button>
+      <button class="btn btn-primary" id="btn-svg-import">Import</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// === PLACEHOLDER — JS sections added in Tasks 2–6 ===
+</script>
+</body>
+</html>
+```
+
+- [ ] **Step 2: Add the `.hidden` utility class to the CSS**
+
+In the `<style>` block, after the last rule, add:
+
+```css
+    .hidden { display: none !important; }
+```
+
+- [ ] **Step 3: Verify layout in browser**
+
+Open `index.html` in Chrome. Confirm:
+- Dark background fills the viewport
+- Top bar is 38px with "STEREOFORGE" wordmark, preset dropdown, BG color picker, Export/Save/Load buttons
+- Left toolbar is 44px wide with 9 tool buttons (select + shapes + text + svg) and separators
+- Right panel is 220px wide showing "Select an element to edit its properties"
+- Center canvas area is dark grey (#171717) filling remaining space
+- All panel section divs are invisible (have class `hidden`) except Layers at bottom
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add index.html
+git commit -m "feat: HTML/CSS shell with dark UI layout"
+```
+
+---
+
+### Task 2: Scene State + Undo/Redo
+
+**Files:**
+- Modify: `index.html` — replace the `<script>` placeholder with state JS
+
+- [ ] **Step 1: Replace the `<script>` placeholder with the state management code**
+
+Replace:
+```html
+<script>
+// === PLACEHOLDER — JS sections added in Tasks 2–6 ===
+</script>
+```
+
+With:
+
+```html
+<script>
+// === CONSTANTS ===
+
+const PRESETS = {
+  'ig-portrait': { w: 1080, h: 1350 },
+  'ig-square':   { w: 1080, h: 1080 },
+  'twitter':     { w: 1200, h: 675  },
+  'facebook':    { w: 1200, h: 630  },
+};
+
+const GOOGLE_FONTS = [
+  'Abril Fatface','Alfa Slab One','Archivo Black','Bebas Neue','Cinzel',
+  'Comfortaa','Dancing Script','Exo 2','Fredoka One','Josefin Sans',
+  'Lato','Libre Baskerville','Lobster','Merriweather','Montserrat',
+  'Noto Sans','Nunito','Open Sans','Oswald','PT Sans','Pacifico',
+  'Permanent Marker','Playfair Display','Poppins','PT Serif','Raleway',
+  'Righteous','Roboto','Source Sans Pro','Titan One','Trebuchet MS','Ubuntu',
+];
+
+// === STATE ===
+
+let scene = {
+  preset: 'ig-portrait',
+  outputWidth: 1080,
+  outputHeight: 1350,
+  bgColor: '#000000',
+  elements: [],
+};
+
+let undoStack = [];   // array of JSON strings
+let redoStack = [];
+let selectedIds = [];
+let activeTool = 'select';
+let previewScale = 1;
+
+// === UNDO / REDO ===
+
+function pushUndo() {
+  undoStack.push(JSON.stringify(scene));
+  if (undoStack.length > 50) undoStack.shift();
+  redoStack = [];
+}
+
+function applyUndo() {
+  if (!undoStack.length) return;
+  redoStack.push(JSON.stringify(scene));
+  scene = JSON.parse(undoStack.pop());
+  selectedIds = [];
+}
+
+function applyRedo() {
+  if (!redoStack.length) return;
+  undoStack.push(JSON.stringify(scene));
+  scene = JSON.parse(redoStack.pop());
+  selectedIds = [];
+}
+
+// === ELEMENT FACTORY ===
+
+function generateId() {
+  return Math.random().toString(36).slice(2, 10) +
+         Math.random().toString(36).slice(2, 10);
+}
+
+function createElement(type, overrides = {}) {
+  const halfW = scene.outputWidth / 4;
+  const base = {
+    id: generateId(),
+    type,
+    x: halfW,
+    y: scene.outputHeight / 2,
+    width: type === 'text' ? 400 : 200,
+    height: type === 'line' || type === 'arrow' ? 0 : 200,
+    rotation: 0,
+    depth: 0,
+    fillStyle: type === 'line' || type === 'arrow' ? 'outline' : 'both',
+    fillColor: '#ffffff',
+    strokeColor: '#ffffff',
+    strokeWidth: 2,
+    sides: 6,
+    text: 'Text',
+    fontFamily: 'Arial',
+    fontSize: 72,
+    fontWeight: '400',
+    fontStyle: 'normal',
+    letterSpacing: 0,
+    lineHeight: 1.2,
+    textAlign: 'center',
+    svgSource: '',
+    visible: true,
+    locked: false,
+  };
+  return Object.assign(base, overrides);
+}
+
+// === SCENE MUTATIONS ===
+
+function addElement(el) {
+  pushUndo();
+  scene.elements.push(el);
+}
+
+function removeElements(ids) {
+  if (!ids.length) return;
+  pushUndo();
+  scene.elements = scene.elements.filter(el => !ids.includes(el.id));
+  selectedIds = selectedIds.filter(id => !ids.includes(id));
+}
+
+function updateElement(id, props) {
+  const el = scene.elements.find(e => e.id === id);
+  if (el) Object.assign(el, props);
+}
+
+function updateSelectedElements(props) {
+  selectedIds.forEach(id => updateElement(id, props));
+}
+
+function duplicateSelected() {
+  if (!selectedIds.length) return;
+  pushUndo();
+  const newIds = [];
+  selectedIds.forEach(id => {
+    const el = scene.elements.find(e => e.id === id);
+    if (!el) return;
+    const copy = Object.assign({}, el, { id: generateId(), x: el.x + 20, y: el.y + 20 });
+    scene.elements.push(copy);
+    newIds.push(copy.id);
+  });
+  selectedIds = newIds;
+}
+
+function bringForward(id) {
+  const idx = scene.elements.findIndex(e => e.id === id);
+  if (idx < scene.elements.length - 1) {
+    [scene.elements[idx], scene.elements[idx + 1]] =
+    [scene.elements[idx + 1], scene.elements[idx]];
+  }
+}
+
+function sendBack(id) {
+  const idx = scene.elements.findIndex(e => e.id === id);
+  if (idx > 0) {
+    [scene.elements[idx], scene.elements[idx - 1]] =
+    [scene.elements[idx - 1], scene.elements[idx]];
+  }
+}
+
+// === PLACEHOLDER — rendering added in Task 3 ===
+// === PLACEHOLDER — shapes added in Task 4 ===
+// === PLACEHOLDER — text added in Task 5 ===
+// === PLACEHOLDER — SVG added in Task 6 ===
+// === PLACEHOLDER — interaction added in Part B ===
+// === PLACEHOLDER — fonts added in Part C ===
+// === PLACEHOLDER — export added in Part C ===
+// === PLACEHOLDER — save/load added in Part C ===
+
+// === INIT ===
+
+window.addEventListener('DOMContentLoaded', () => {
+  // Wire up preset dropdown
+  document.getElementById('preset-select').addEventListener('change', e => {
+    const v = e.target.value;
+    if (v === 'custom') {
+      document.getElementById('custom-w').style.display = 'inline-block';
+      document.getElementById('custom-h').style.display = 'inline-block';
+      return;
+    }
+    document.getElementById('custom-w').style.display = 'none';
+    document.getElementById('custom-h').style.display = 'none';
+    pushUndo();
+    scene.preset = v;
+    scene.outputWidth = PRESETS[v].w;
+    scene.outputHeight = PRESETS[v].h;
+    if (typeof fitCanvas === 'function') fitCanvas();
+  });
+
+  document.getElementById('custom-w').addEventListener('change', e => {
+    pushUndo();
+    scene.outputWidth = Math.max(100, parseInt(e.target.value) || 1080) * 2;
+    if (typeof fitCanvas === 'function') fitCanvas();
+  });
+  document.getElementById('custom-h').addEventListener('change', e => {
+    pushUndo();
+    scene.outputHeight = Math.max(100, parseInt(e.target.value) || 1080);
+    if (typeof fitCanvas === 'function') fitCanvas();
+  });
+
+  document.getElementById('bg-color-input').addEventListener('input', e => {
+    scene.bgColor = e.target.value;
+  });
+});
+</script>
+```
+
+- [ ] **Step 2: Verify state in browser console**
+
+Open `index.html` in Chrome DevTools. In the Console tab, run:
+
+```js
+scene
+// Expected: { preset: "ig-portrait", outputWidth: 1080, outputHeight: 1350, bgColor: "#000000", elements: [] }
+
+pushUndo(); scene.elements.push({ id: 'test' }); undoStack.length
+// Expected: 1
+
+applyUndo(); scene.elements.length
+// Expected: 0
+
+applyRedo(); scene.elements.length
+// Expected: 1
+```
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add index.html
+git commit -m "feat: scene state, undo/redo, and element factory"
+```
+
+---
+
+### Task 3: Canvas Rendering Engine
+
+**Files:**
+- Modify: `index.html` — replace the rendering placeholder with canvas setup and drawScene
+
+- [ ] **Step 1: Replace `// === PLACEHOLDER — rendering added in Task 3 ===` with the rendering engine**
+
+```js
+// === RENDERING ENGINE ===
+
+let animFrameId = null;
+
+function fitCanvas() {
+  const area = document.getElementById('canvas-area');
+  const availW = area.clientWidth - 20;
+  const availH = area.clientHeight - 20;
+  const scaleX = availW / scene.outputWidth;
+  const scaleY = availH / scene.outputHeight;
+  previewScale = Math.min(scaleX, scaleY, 1);
+
+  const canvas = document.getElementById('preview-canvas');
+  canvas.width  = scene.outputWidth;
+  canvas.height = scene.outputHeight;
+
+  const displayW = Math.round(scene.outputWidth  * previewScale);
+  const displayH = Math.round(scene.outputHeight * previewScale);
+  canvas.style.width  = displayW + 'px';
+  canvas.style.height = displayH + 'px';
+  canvas.style.position = 'absolute';
+  canvas.style.left = Math.round((area.clientWidth  - displayW) / 2) + 'px';
+  canvas.style.top  = Math.round((area.clientHeight - displayH) / 2) + 'px';
+}
+
+/** Convert mouse/touch event position to output-resolution canvas coordinates */
+function canvasPos(e) {
+  const canvas = document.getElementById('preview-canvas');
+  const rect = canvas.getBoundingClientRect();
+  const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+  const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+  return {
+    x: (clientX - rect.left)  * (scene.outputWidth  / rect.width),
+    y: (clientY - rect.top)   * (scene.outputHeight / rect.height),
+  };
+}
+
+/**
+ * Draw the full scene onto `ctx`.
+ * All coordinates are in output-resolution pixels.
+ * `xOffset` per element = panelOriginX ± depth/2
+ */
+function drawScene(ctx, scn, opts = {}) {
+  const { showDivider = true } = opts;
+  const W = scn.outputWidth;
+  const H = scn.outputHeight;
+  const halfW = W / 2;
+
+  // Background
+  ctx.fillStyle = scn.bgColor;
+  ctx.fillRect(0, 0, W, H);
+
+  for (const el of scn.elements) {
+    if (!el.visible) continue;
+
+    // Left panel — element shifts right by +depth/2 (positive = in front for wall-eyed)
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, 0, halfW, H);
+    ctx.clip();
+    drawElement(ctx, el, el.depth / 2);
+    ctx.restore();
+
+    // Right panel — element shifts left by -depth/2, origin at halfW
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(halfW, 0, halfW, H);
+    ctx.clip();
+    drawElement(ctx, el, halfW - el.depth / 2);
+    ctx.restore();
+  }
+
+  // Divider (preview only)
+  if (showDivider) {
+    ctx.save();
+    ctx.strokeStyle = '#444444';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(halfW, 0);
+    ctx.lineTo(halfW, H);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // L / R panel labels
+    ctx.font = '500 11px system-ui';
+    ctx.fillStyle = '#333333';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText('L', 6, 6);
+    ctx.textAlign = 'right';
+    ctx.fillText('R', W - 6, 6);
+    ctx.restore();
+  }
+}
+
+/**
+ * Draw a single element.
+ * `xOffset` = panelOriginX ± depth/2
+ * Element.x is the center X within a single panel (0..outputWidth/2).
+ */
+function drawElement(ctx, el, xOffset) {
+  // drawElement body is filled in Tasks 4–6.
+  // This stub just marks the center for verification.
+  const cx = xOffset + el.x;
+  const cy = el.y;
+  ctx.save();
+  ctx.translate(cx, cy);
+  if (el.rotation) ctx.rotate(el.rotation * Math.PI / 180);
+  applyElementStyle(ctx, el);
+  // dispatch to shape handlers (added Task 4–6)
+  if (typeof dispatchDraw === 'function') dispatchDraw(ctx, el);
+  ctx.restore();
+}
+
+function applyElementStyle(ctx, el) {
+  ctx.fillStyle   = el.fillColor;
+  ctx.strokeStyle = el.strokeColor;
+  ctx.lineWidth   = el.strokeWidth;
+  ctx.lineCap     = 'round';
+  ctx.lineJoin    = 'round';
+}
+
+function startRenderLoop() {
+  if (animFrameId) cancelAnimationFrame(animFrameId);
+  function frame() {
+    const canvas = document.getElementById('preview-canvas');
+    const ctx = canvas.getContext('2d');
+    drawScene(ctx, scene, { showDivider: true });
+    // Draw selection handles on top (added Part B)
+    if (typeof drawSelectionHandles === 'function') drawSelectionHandles(ctx);
+    animFrameId = requestAnimationFrame(frame);
+  }
+  animFrameId = requestAnimationFrame(frame);
+}
+```
+
+- [ ] **Step 2: Wire up `fitCanvas` and `startRenderLoop` in the existing `DOMContentLoaded` handler**
+
+Inside the `window.addEventListener('DOMContentLoaded', ...)` callback, just before the closing `});`, add:
+
+```js
+  fitCanvas();
+  startRenderLoop();
+  window.addEventListener('resize', fitCanvas);
+```
+
+- [ ] **Step 3: Add a test element to verify rendering**
+
+In the console:
+
+```js
+scene.bgColor = '#000000';
+scene.elements.push(createElement('rect', { x: 270, y: 200, width: 300, height: 150, fillColor: '#ffffff', strokeColor: '#ffffff' }));
+```
+
+You should immediately see a white rectangle appear in both the left and right panels (depth=0 so they are mirror images). The dashed divider line and L/R labels should be visible.
+
+Change the depth to verify stereo shift:
+
+```js
+scene.elements[0].depth = 40;
+```
+
+The rectangle in the left panel should shift 20px right; in the right panel it should shift 20px left.
+
+- [ ] **Step 4: Remove the test element and commit**
+
+In the console:
+
+```js
+scene.elements = [];
+```
+
+Then commit:
+
+```bash
+git add index.html
+git commit -m "feat: canvas rendering engine with stereo depth offset"
+```
+
+---
+
+### Task 4: Shape Rendering
+
+**Files:**
+- Modify: `index.html` — replace the shapes placeholder with `dispatchDraw` and all shape functions
+
+- [ ] **Step 1: Replace `// === PLACEHOLDER — shapes added in Task 4 ===` with the shape drawing code**
+
+```js
+// === SHAPE RENDERING ===
+
+/**
+ * Called from drawElement after translate/rotate.
+ * All drawing is relative to element center (0, 0).
+ */
+function dispatchDraw(ctx, el) {
+  switch (el.type) {
+    case 'rect':     drawRect(ctx, el);     break;
+    case 'ellipse':  drawEllipse(ctx, el);  break;
+    case 'triangle': drawTriangle(ctx, el); break;
+    case 'polygon':  drawPolygon(ctx, el);  break;
+    case 'line':     drawLine(ctx, el);     break;
+    case 'arrow':    drawArrow(ctx, el);    break;
+    case 'text':     if (typeof drawText === 'function') drawText(ctx, el); break;
+    case 'svg':      if (typeof drawSVG  === 'function') drawSVG(ctx, el);  break;
+  }
+}
+
+function doFillStroke(ctx, el) {
+  if (el.fillStyle === 'solid' || el.fillStyle === 'both')   ctx.fill();
+  if (el.fillStyle === 'outline' || el.fillStyle === 'both') ctx.stroke();
+}
+
+function drawRect(ctx, el) {
+  const x = -el.width / 2;
+  const y = -el.height / 2;
+  ctx.beginPath();
+  ctx.rect(x, y, el.width, el.height);
+  doFillStroke(ctx, el);
+}
+
+function drawEllipse(ctx, el) {
+  ctx.beginPath();
+  ctx.ellipse(0, 0, el.width / 2, el.height / 2, 0, 0, Math.PI * 2);
+  doFillStroke(ctx, el);
+}
+
+function drawTriangle(ctx, el) {
+  const hw = el.width / 2;
+  const hh = el.height / 2;
+  ctx.beginPath();
+  ctx.moveTo(0, -hh);
+  ctx.lineTo(hw, hh);
+  ctx.lineTo(-hw, hh);
+  ctx.closePath();
+  doFillStroke(ctx, el);
+}
+
+function drawPolygon(ctx, el) {
+  const sides = Math.max(3, el.sides || 6);
+  const rx = el.width / 2;
+  const ry = el.height / 2;
+  ctx.beginPath();
+  for (let i = 0; i < sides; i++) {
+    const angle = (i / sides) * Math.PI * 2 - Math.PI / 2;
+    const px = Math.cos(angle) * rx;
+    const py = Math.sin(angle) * ry;
+    i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  doFillStroke(ctx, el);
+}
+
+function drawLine(ctx, el) {
+  const hw = el.width / 2;
+  ctx.beginPath();
+  ctx.moveTo(-hw, 0);
+  ctx.lineTo(hw, 0);
+  ctx.stroke();
+}
+
+function drawArrow(ctx, el) {
+  const hw = el.width / 2;
+  const headW  = Math.max(8, el.strokeWidth * 4);
+  const headH  = Math.max(8, el.strokeWidth * 4);
+  const shaftEnd = hw - headW;
+
+  // Shaft
+  ctx.beginPath();
+  ctx.moveTo(-hw, 0);
+  ctx.lineTo(shaftEnd, 0);
+  ctx.stroke();
+
+  // Head
+  ctx.beginPath();
+  ctx.moveTo(hw, 0);
+  ctx.lineTo(shaftEnd, -headH / 2);
+  ctx.lineTo(shaftEnd,  headH / 2);
+  ctx.closePath();
+  ctx.fill();
+  if (el.fillStyle === 'outline' || el.fillStyle === 'both') ctx.stroke();
+}
+```
+
+- [ ] **Step 2: Verify all shapes render in browser**
+
+In the DevTools console, add one of each shape:
+
+```js
+const halfW = scene.outputWidth / 4;
+const midY  = scene.outputHeight / 2;
+const gap   = scene.outputHeight / 8;
+
+scene.elements.push(createElement('rect',     { x: halfW, y: midY - gap*3, width: 200, height: 100 }));
+scene.elements.push(createElement('ellipse',  { x: halfW, y: midY - gap*2, width: 200, height: 120 }));
+scene.elements.push(createElement('triangle', { x: halfW, y: midY - gap,   width: 180, height: 160 }));
+scene.elements.push(createElement('polygon',  { x: halfW, y: midY,         width: 180, height: 180, sides: 6 }));
+scene.elements.push(createElement('line',     { x: halfW, y: midY + gap,   width: 200, height: 0, fillStyle: 'outline', strokeWidth: 3 }));
+scene.elements.push(createElement('arrow',    { x: halfW, y: midY + gap*2, width: 200, height: 0, strokeWidth: 3 }));
+```
+
+Expected: 6 white shapes visible in both panels. Each shape is mirrored identically (depth=0).
+
+Test depth offset:
+```js
+scene.elements[0].depth = 60;
+scene.elements[3].depth = -40;
+```
+
+Expected: rectangle appears shifted apart (in front), hexagon appears shifted toward center (behind).
+
+- [ ] **Step 3: Test rotation**
+
+```js
+scene.elements[1].rotation = 45;
+```
+
+Expected: ellipse rotates 45° in place in both panels.
+
+- [ ] **Step 4: Clear and commit**
+
+```js
+scene.elements = [];
+```
+
+```bash
+git add index.html
+git commit -m "feat: shape rendering (rect, ellipse, triangle, polygon, line, arrow)"
+```
+
+---
+
+### Task 5: Text Rendering
+
+**Files:**
+- Modify: `index.html` — replace the text placeholder with `drawText`
+
+- [ ] **Step 1: Replace `// === PLACEHOLDER — text added in Task 5 ===` with the text drawing code**
+
+```js
+// === TEXT RENDERING ===
+
+function drawText(ctx, el) {
+  const style  = el.fontStyle  === 'italic' ? 'italic ' : '';
+  const weight = el.fontWeight || '400';
+  ctx.font          = `${style}${weight} ${el.fontSize}px "${el.fontFamily}"`;
+  ctx.textBaseline  = 'middle';
+  ctx.textAlign     = el.textAlign || 'center';
+
+  const lines   = (el.text || '').split('\n');
+  const lineH   = el.fontSize * (el.lineHeight || 1.2);
+  const totalH  = lines.length * lineH;
+  const startY  = -(totalH / 2) + lineH / 2;
+
+  lines.forEach((line, i) => {
+    const y = startY + i * lineH;
+    if (el.letterSpacing && el.letterSpacing !== 0) {
+      drawTextWithSpacing(ctx, el, line, y);
+    } else {
+      applyTextFillStroke(ctx, el, line, 0, y);
+    }
+  });
+}
+
+function drawTextWithSpacing(ctx, el, line, y) {
+  const chars = [...line];
+  // Measure total width to position correctly
+  let totalW = 0;
+  chars.forEach(ch => { totalW += ctx.measureText(ch).width + el.letterSpacing; });
+  if (chars.length) totalW -= el.letterSpacing; // no trailing space
+
+  let startX = 0;
+  if (el.textAlign === 'center') startX = -totalW / 2;
+  else if (el.textAlign === 'right') startX = -totalW;
+
+  // Temporarily override alignment to left for char-by-char
+  const savedAlign = ctx.textAlign;
+  ctx.textAlign = 'left';
+
+  let x = startX;
+  chars.forEach(ch => {
+    applyTextFillStroke(ctx, el, ch, x, y);
+    x += ctx.measureText(ch).width + el.letterSpacing;
+  });
+  ctx.textAlign = savedAlign;
+}
+
+function applyTextFillStroke(ctx, el, str, x, y) {
+  if (el.fillStyle === 'solid' || el.fillStyle === 'both') {
+    ctx.fillStyle = el.fillColor;
+    ctx.fillText(str, x, y);
+  }
+  if (el.fillStyle === 'outline' || el.fillStyle === 'both') {
+    ctx.strokeStyle  = el.strokeColor;
+    ctx.lineWidth    = el.strokeWidth;
+    ctx.strokeText(str, x, y);
+  }
+}
+```
+
+- [ ] **Step 2: Verify text renders in browser**
+
+```js
+scene.elements.push(createElement('text', {
+  x: scene.outputWidth / 4,
+  y: scene.outputHeight / 2,
+  text: 'STEREO\nFORGE',
+  fontSize: 120,
+  fontFamily: 'Arial',
+  fontWeight: '700',
+  fillStyle: 'both',
+  fillColor: '#ffffff',
+  strokeColor: '#333333',
+  strokeWidth: 2,
+  lineHeight: 1.1,
+  textAlign: 'center',
+}));
+```
+
+Expected: two-line white "STEREO / FORGE" centred in both panels.
+
+Test letter spacing:
+```js
+scene.elements[0].letterSpacing = 10;
+```
+
+Expected: characters spread apart evenly.
+
+- [ ] **Step 3: Test italic + outline**
+
+```js
+scene.elements.push(createElement('text', {
+  x: scene.outputWidth / 4,
+  y: 200,
+  text: 'Italic Outline',
+  fontSize: 60,
+  fontFamily: 'Georgia',
+  fontStyle: 'italic',
+  fillStyle: 'outline',
+  strokeColor: '#ffffff',
+  strokeWidth: 1.5,
+}));
+```
+
+Expected: italic outlined text in both panels.
+
+- [ ] **Step 4: Clear and commit**
+
+```js
+scene.elements = [];
+```
+
+```bash
+git add index.html
+git commit -m "feat: text rendering with multiline, letter spacing, italic, fill/stroke modes"
+```
+
+---
+
+### Task 6: SVG Rendering
+
+**Files:**
+- Modify: `index.html` — replace the SVG placeholder with sanitization, caching, and `drawSVG`
+
+- [ ] **Step 1: Replace `// === PLACEHOLDER — SVG added in Task 6 ===` with the SVG rendering code**
+
+```js
+// === SVG RENDERING ===
+
+// Cache maps element-id → { source: string, img: HTMLImageElement }
+// We store the source string so we can detect when it changes.
+const svgImageCache = new Map();
+
+function sanitizeSVG(svgStr) {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(svgStr.trim(), 'image/svg+xml');
+  const err = doc.querySelector('parsererror');
+  if (err) return null; // invalid SVG
+
+  // Remove script elements
+  doc.querySelectorAll('script').forEach(n => n.remove());
+
+  // Remove on* event attributes from all elements
+  doc.querySelectorAll('*').forEach(node => {
+    for (const attr of [...node.attributes]) {
+      if (attr.name.toLowerCase().startsWith('on')) {
+        node.removeAttribute(attr.name);
+      }
+    }
+  });
+
+  return new XMLSerializer().serializeToString(doc.documentElement);
+}
+
+function getSVGImage(el) {
+  const cached = svgImageCache.get(el.id);
+  if (cached && cached.source === el.svgSource) return cached.img;
+
+  // Bust old cache entry
+  if (cached && cached.url) URL.revokeObjectURL(cached.url);
+
+  const clean = sanitizeSVG(el.svgSource);
+  if (!clean) return null;
+
+  const blob = new Blob([clean], { type: 'image/svg+xml' });
+  const url  = URL.createObjectURL(blob);
+  const img  = new Image();
+  img.onload = () => {}; // RAF will pick it up on next frame
+  img.onerror = () => { svgImageCache.delete(el.id); };
+  img.src = url;
+
+  svgImageCache.set(el.id, { source: el.svgSource, img, url });
+  return img;
+}
+
+function drawSVG(ctx, el) {
+  if (!el.svgSource) return;
+  const img = getSVGImage(el);
+  if (!img || !img.complete || img.naturalWidth === 0) return;
+  ctx.drawImage(img, -el.width / 2, -el.height / 2, el.width, el.height);
+}
+```
+
+- [ ] **Step 2: Verify SVG renders in browser**
+
+In the console, add a simple SVG element:
+
+```js
+const testSVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <circle cx="50" cy="50" r="45" fill="white" stroke="none"/>
+  <text x="50" y="56" text-anchor="middle" font-family="sans-serif" font-size="20" fill="black">SVG</text>
+</svg>`;
+
+scene.elements.push(createElement('svg', {
+  x: scene.outputWidth / 4,
+  y: scene.outputHeight / 2,
+  width: 300,
+  height: 300,
+  svgSource: testSVG,
+}));
+```
+
+Expected: white circle with "SVG" text centred in both panels.
+
+- [ ] **Step 3: Verify sanitization strips scripts**
+
+```js
+const maliciousSVG = `<svg xmlns="http://www.w3.org/2000/svg">
+  <script>alert('xss')</script>
+  <circle cx="50" cy="50" r="40" fill="red" onclick="alert('click')"/>
+</svg>`;
+
+scene.elements.push(createElement('svg', {
+  x: scene.outputWidth / 4,
+  y: 200,
+  width: 200,
+  height: 200,
+  svgSource: maliciousSVG,
+}));
+```
+
+Expected: red circle renders without triggering any alert. Open DevTools → Sources and confirm no `<script>` or `onclick` is present in the blob URL.
+
+- [ ] **Step 4: Test depth offset on SVG**
+
+```js
+scene.elements[0].depth = 50;
+```
+
+Expected: SVG shifts 25px right in left panel, 25px left in right panel.
+
+- [ ] **Step 5: Clear and commit**
+
+```js
+scene.elements = [];
+```
+
+```bash
+git add index.html
+git commit -m "feat: SVG element rendering with sanitization and blob URL caching"
+```
+
+---
+
+## Self-Review Notes
+
+**Spec coverage check:**
+- ✅ Single HTML file, no build step
+- ✅ Canvas API rendering
+- ✅ Two-canvas model (preview canvas established; export canvas added Part C)
+- ✅ Scene state object with all required fields
+- ✅ Undo/redo stack (50 steps)
+- ✅ All 8 element types (rect, ellipse, triangle, polygon, line, arrow, text, svg)
+- ✅ Depth offset formula (positive = in front for wall-eyed viewing)
+- ✅ Fill/stroke/both modes
+- ✅ Text multiline, letter spacing, line height, italic, weight
+- ✅ SVG sanitization (script removal, on* attribute removal)
+- ✅ Dark UI shell with all panels and controls (inert until Part B)
+- ✅ Mobile CSS breakpoint (layout responds at 768px)
+- ⏳ Selection, handles, right panel wiring → Part B
+- ⏳ Font system (queryLocalFonts, Google Fonts, custom) → Part C
+- ⏳ PNG export → Part C
+- ⏳ Save/load project → Part C
+- ⏳ Keyboard shortcuts → Part C
+- ⏳ Output preset live-switching → Part C
+
+**Type/name consistency:**
+- `drawElement(ctx, el, xOffset)` — used consistently in Task 3 and dispatched from Task 4
+- `dispatchDraw(ctx, el)` — called in `drawElement`, defined in Task 4 ✓
+- `drawText(ctx, el)` / `drawSVG(ctx, el)` — guarded by `typeof` in `dispatchDraw` ✓
+- `applyUndo()` / `applyRedo()` — only name used throughout ✓
+- `removeElements(ids)` — takes array, all callers pass arrays ✓
