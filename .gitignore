@@ -24,6 +24,9 @@ Thumbs.db
 *.swp
 *.swo
 
+# Brainstorm / superpowers session files
+.superpowers/
+
 # Logs
 *.log
 npm-debug.log*
