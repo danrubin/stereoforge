@@ -2138,7 +2138,8 @@ async function loadGoogleFont(name) {
   link.rel = 'stylesheet';
   link.href = url;
   document.head.appendChild(link);
-  await document.fonts.ready;
+  await new Promise(resolve => { link.onload = resolve; link.onerror = resolve; });
+  await document.fonts.load(`400 1em "${name}"`).catch(() => {});
 }
 
 // Add a font name to #prop-font-family if not already present, then select it.
@@ -2187,7 +2188,12 @@ document.getElementById('btn-apply-custom-font').addEventListener('click', async
 
   try {
     document.head.appendChild(node);
-    await document.fonts.ready;
+    if (node.tagName === 'LINK') {
+      await new Promise(resolve => { node.onload = resolve; node.onerror = resolve; });
+      if (fontName) await document.fonts.load(`400 1em "${fontName}"`).catch(() => {});
+    } else {
+      await document.fonts.ready;
+    }
     if (fontName) {
       addFontToDropdown(fontName, 'custom');
       status.textContent = `✓ "${fontName}" loaded.`;
