@@ -455,6 +455,9 @@
     }
 
     .hidden { display: none !important; }
+    .layer-eye { font-size: 11px; flex-shrink: 0; cursor: pointer; }
+    .layer-eye:hover { opacity: 0.7; }
+    .layer-label { font-size: 10px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
   </style>
 </head>
 <body>
@@ -1871,7 +1874,199 @@ document.addEventListener('keydown', e => {
     e.preventDefault(); applyRedo(); refreshPanel();
   }
 });
-// === PLACEHOLDER — layers + keyboard added in Task 6 ===
+// === TYPOGRAPHY ===
+
+function wireTypographyInput(id, prop, parser) {
+  const el = document.getElementById(id);
+  el.addEventListener('change', e => {
+    if (selectedIds.length !== 1) return;
+    pushUndo();
+    const v = parser ? parser(e.target.value) : e.target.value;
+    updateSelectedElements({ [prop]: v });
+    refreshPanel();
+  });
+}
+
+wireTypographyInput('prop-font-family', 'fontFamily', null);
+wireTypographyInput('prop-font-size', 'fontSize', parseFloat);
+wireTypographyInput('prop-font-weight', 'fontWeight', null);
+wireTypographyInput('prop-letter-spacing', 'letterSpacing', parseFloat);
+wireTypographyInput('prop-line-height', 'lineHeight', parseFloat);
+wireTypographyInput('prop-text-align', 'textAlign', null);
+
+// Italic checkbox handled separately (boolean → string)
+document.getElementById('prop-italic').addEventListener('change', e => {
+  if (selectedIds.length !== 1) return;
+  pushUndo();
+  updateSelectedElements({ fontStyle: e.target.checked ? 'italic' : 'normal' });
+  refreshPanel();
+});
+
+// === TEXT INLINE EDITOR ===
+
+let editingTextId = null;
+
+document.getElementById('preview-canvas').addEventListener('dblclick', e => {
+  const { x, y } = canvasPos(e);
+  const hitId = hitTest(x, y);
+  if (!hitId) return;
+  const el = scene.elements.find(el => el.id === hitId);
+  if (!el || el.type !== 'text') return;
+  openTextEditor(el);
+});
+
+function openTextEditor(el) {
+  editingTextId = el.id;
+  const overlay = document.getElementById('text-editor-overlay');
+  const textarea = document.getElementById('text-editor');
+  const canvas = document.getElementById('preview-canvas');
+  const rect = canvas.getBoundingClientRect();
+
+  // Position the overlay over the element
+  const screenX = (el.x - el.width / 2) * previewScale + rect.left;
+  const screenY = (el.y - el.height / 2) * previewScale + rect.top;
+  const screenW = el.width * previewScale;
+  const screenH = Math.max(el.height * previewScale, 40);
+
+  overlay.style.left   = `${screenX}px`;
+  overlay.style.top    = `${screenY}px`;
+  overlay.style.width  = `${screenW}px`;
+  overlay.style.height = `${screenH}px`;
+  overlay.style.display = 'block';
+  overlay.style.position = 'fixed';
+
+  textarea.style.fontSize   = `${el.fontSize * previewScale}px`;
+  textarea.style.fontFamily = el.fontFamily;
+  textarea.style.fontWeight = el.fontWeight;
+  textarea.style.fontStyle  = el.fontStyle;
+  textarea.style.textAlign  = el.textAlign;
+  textarea.style.color      = el.fillColor;
+  textarea.value = el.text;
+  textarea.focus();
+  textarea.select();
+}
+
+function commitTextEdit() {
+  if (!editingTextId) return;
+  const textarea = document.getElementById('text-editor');
+  pushUndo();
+  updateElement(editingTextId, { text: textarea.value });
+  editingTextId = null;
+  document.getElementById('text-editor-overlay').style.display = 'none';
+  refreshPanel();
+}
+
+document.getElementById('text-editor').addEventListener('keydown', e => {
+  if (e.key === 'Escape') { e.preventDefault(); commitTextEdit(); }
+});
+document.getElementById('text-editor').addEventListener('blur', () => commitTextEdit());
+
+// === LAYERS LIST ===
+
+let layerDragId = null;
+
+function renderLayersList() {
+  const list = document.getElementById('layers-list');
+  list.innerHTML = '';
+  // Reverse: top of list = frontmost (highest index)
+  const reversed = [...scene.elements].reverse();
+  for (const el of reversed) {
+    const item = document.createElement('div');
+    item.className = 'layer-item' + (selectedIds.includes(el.id) ? ' selected' : '');
+    item.dataset.id = el.id;
+    item.draggable = true;
+
+    const eye = document.createElement('span');
+    eye.className = 'layer-eye';
+    eye.textContent = el.visible ? '👁' : '○';
+    eye.title = el.visible ? 'Hide' : 'Show';
+    eye.addEventListener('click', e => {
+      e.stopPropagation();
+      pushUndo();
+      updateElement(el.id, { visible: !el.visible });
+      refreshPanel();
+    });
+
+    const label = document.createElement('span');
+    label.className = 'layer-label';
+    const typeLabel = el.type === 'text' ? `"${el.text.slice(0, 14)}"` : el.type;
+    label.textContent = el.locked ? `🔒 ${typeLabel}` : typeLabel;
+    label.style.opacity = el.visible ? '1' : '0.4';
+
+    item.appendChild(eye);
+    item.appendChild(label);
+
+    item.addEventListener('click', () => {
+      selectedIds = [el.id];
+      refreshPanel();
+    });
+
+    // Drag-to-reorder
+    item.addEventListener('dragstart', e => {
+      layerDragId = el.id;
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    item.addEventListener('dragover', e => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      item.style.borderTop = '2px solid var(--accent)';
+    });
+    item.addEventListener('dragleave', () => { item.style.borderTop = ''; });
+    item.addEventListener('drop', e => {
+      e.preventDefault();
+      item.style.borderTop = '';
+      if (!layerDragId || layerDragId === el.id) return;
+      pushUndo();
+      const fromIdx = scene.elements.findIndex(e => e.id === layerDragId);
+      const toIdx   = scene.elements.findIndex(e => e.id === el.id);
+      const [moved] = scene.elements.splice(fromIdx, 1);
+      scene.elements.splice(toIdx, 0, moved);
+      refreshPanel();
+    });
+
+    list.appendChild(item);
+  }
+}
+
+// === KEYBOARD SHORTCUTS ===
+
+document.addEventListener('keydown', e => {
+  // Don't fire shortcuts when typing in inputs
+  const tag = document.activeElement.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+
+  if (e.key === 'Escape') {
+    selectedIds = [];
+    setActiveTool('select');
+    refreshPanel();
+  }
+  if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIds.length > 0) {
+    e.preventDefault();
+    removeElements(selectedIds);
+    refreshPanel();
+  }
+  if ((e.metaKey || e.ctrlKey) && e.key === 'd') {
+    e.preventDefault();
+    duplicateSelected();
+    refreshPanel();
+  }
+  if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+    if (!selectedIds.length) return;
+    e.preventDefault();
+    const step = e.shiftKey ? 10 : 1;
+    const dx = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0;
+    const dy = e.key === 'ArrowUp'   ? -step : e.key === 'ArrowDown'  ? step : 0;
+    pushUndo();
+    selectedIds.forEach(id => {
+      const el = scene.elements.find(e => e.id === id);
+      if (el) updateElement(id, { x: el.x + dx, y: el.y + dy });
+    });
+    refreshPanel();
+  }
+});
+
+// Call refreshPanel once on init to set initial state
+refreshPanel();
 // === PLACEHOLDER — fonts added in Part C ===
 // === PLACEHOLDER — export added in Part C ===
 // === PLACEHOLDER — save/load added in Part C ===
