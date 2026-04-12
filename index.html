@@ -1256,7 +1256,6 @@ function updateCanvasCursor() {
 
 // --- Element placement on canvas click ---
 function placeElement(type, cx, cy) {
-  pushUndo();
   const half = Math.min(scene.outputWidth, scene.outputHeight) / 8;
   const defaults = { x: cx, y: cy, width: half, height: half };
   if (type === 'line' || type === 'arrow') {
@@ -1317,7 +1316,6 @@ document.getElementById('btn-svg-import').addEventListener('click', () => {
 function importSVGString(raw) {
   const clean = sanitizeSVG(raw);
   if (!clean) return;
-  pushUndo();
   const el = createElement('svg', {
     x: scene.outputWidth / 2,
     y: scene.outputHeight / 2,
