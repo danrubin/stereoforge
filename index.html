@@ -1169,7 +1169,60 @@ function applyTextFillStroke(ctx, el, str, x, y) {
     ctx.strokeText(str, x, y);
   }
 }
-// === PLACEHOLDER — SVG added in Task 6 ===
+// === SVG RENDERING ===
+
+// Cache maps element-id → { source: string, img: HTMLImageElement }
+// We store the source string so we can detect when it changes.
+const svgImageCache = new Map();
+
+function sanitizeSVG(svgStr) {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(svgStr.trim(), 'image/svg+xml');
+  const err = doc.querySelector('parsererror');
+  if (err) return null; // invalid SVG
+
+  // Remove script elements
+  doc.querySelectorAll('script').forEach(n => n.remove());
+
+  // Remove on* event attributes from all elements
+  doc.querySelectorAll('*').forEach(node => {
+    for (const attr of [...node.attributes]) {
+      if (attr.name.toLowerCase().startsWith('on')) {
+        node.removeAttribute(attr.name);
+      }
+    }
+  });
+
+  return new XMLSerializer().serializeToString(doc.documentElement);
+}
+
+function getSVGImage(el) {
+  const cached = svgImageCache.get(el.id);
+  if (cached && cached.source === el.svgSource) return cached.img;
+
+  // Bust old cache entry
+  if (cached && cached.url) URL.revokeObjectURL(cached.url);
+
+  const clean = sanitizeSVG(el.svgSource);
+  if (!clean) return null;
+
+  const blob = new Blob([clean], { type: 'image/svg+xml' });
+  const url  = URL.createObjectURL(blob);
+  const img  = new Image();
+  img.onload = () => {}; // RAF will pick it up on next frame
+  img.onerror = () => { svgImageCache.delete(el.id); };
+  img.src = url;
+
+  svgImageCache.set(el.id, { source: el.svgSource, img, url });
+  return img;
+}
+
+function drawSVG(ctx, el) {
+  if (!el.svgSource) return;
+  const img = getSVGImage(el);
+  if (!img || !img.complete || img.naturalWidth === 0) return;
+  ctx.drawImage(img, -el.width / 2, -el.height / 2, el.width, el.height);
+}
 // === PLACEHOLDER — interaction added in Part B ===
 // === PLACEHOLDER — fonts added in Part C ===
 // === PLACEHOLDER — export added in Part C ===
