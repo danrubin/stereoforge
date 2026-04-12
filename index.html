@@ -1104,19 +1104,17 @@ function drawScene(ctx, scn, opts = {}) {
  * Element.x is the center X within a single panel (0..outputWidth/2).
  */
 function drawElement(ctx, el, xOffset) {
-  ctx.save();
-  ctx.globalAlpha = el.opacity ?? 1;
   // drawElement body is filled in Tasks 4–6.
   // This stub just marks the center for verification.
   const cx = xOffset + el.x;
   const cy = el.y;
   ctx.save();
+  ctx.globalAlpha = el.opacity ?? 1;
   ctx.translate(cx, cy);
   if (el.rotation) ctx.rotate(el.rotation * Math.PI / 180);
   applyElementStyle(ctx, el);
   // dispatch to shape handlers (added Task 4–6)
   if (typeof dispatchDraw === 'function') dispatchDraw(ctx, el);
-  ctx.restore();
   ctx.restore();
 }
 
