@@ -2103,7 +2103,107 @@ async function initLocalFonts() {
   }
 }
 
-// === PLACEHOLDER — Google Fonts + custom font added in Task 2 ===
+// === GOOGLE FONTS + CUSTOM FONT ===
+
+function initGoogleFontsSelect() {
+  const select = document.getElementById('gfont-select');
+  select.innerHTML = '<option value="">— Add a Google Font —</option>';
+  for (const name of GOOGLE_FONTS) {
+    const opt = document.createElement('option');
+    opt.value = name;
+    opt.textContent = name;
+    select.appendChild(opt);
+  }
+
+  select.addEventListener('change', async () => {
+    const name = select.value;
+    if (!name) return;
+    await loadGoogleFont(name);
+    addFontToDropdown(name, 'Google');
+    select.value = '';
+    if (selectedIds.length > 0) {
+      pushUndo();
+      updateSelectedElements({ fontFamily: name });
+      refreshPanel();
+    }
+  });
+}
+
+async function loadGoogleFont(name) {
+  const id = `gfont-${name.replace(/\s+/g, '-').toLowerCase()}`;
+  if (document.getElementById(id)) return; // already injected
+  const url = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(name)}:wght@400;700&display=swap`;
+  const link = document.createElement('link');
+  link.id = id;
+  link.rel = 'stylesheet';
+  link.href = url;
+  document.head.appendChild(link);
+  await document.fonts.ready;
+}
+
+// Add a font name to #prop-font-family if not already present, then select it.
+function addFontToDropdown(name, tag) {
+  const select = document.getElementById('prop-font-family');
+  if (![...select.options].some(o => o.value === name)) {
+    const opt = document.createElement('option');
+    opt.value = name;
+    opt.textContent = tag ? `${name} (${tag})` : name;
+    select.insertBefore(opt, select.firstChild);
+  }
+  select.value = name;
+}
+
+// Tier 3 — Custom font
+document.getElementById('btn-apply-custom-font').addEventListener('click', async () => {
+  const raw = document.getElementById('custom-font-input').value.trim();
+  const status = document.getElementById('custom-font-status');
+  if (!raw) return;
+
+  let node;
+  let fontName = '';
+
+  if (raw.startsWith('<link')) {
+    // Extract href and inject a clean link tag
+    const hrefMatch = raw.match(/href=['"]([^'"]+)['"]/i);
+    if (!hrefMatch) { status.textContent = 'Could not find href in <link> tag.'; return; }
+    node = document.createElement('link');
+    node.rel = 'stylesheet';
+    node.href = hrefMatch[1];
+    // Try to extract font name from Google Fonts URL
+    const familyMatch = hrefMatch[1].match(/family=([^&:+]+)/i);
+    if (familyMatch) fontName = decodeURIComponent(familyMatch[1].replace(/\+/g, ' '));
+  } else if (raw.includes('@font-face') || raw.includes('@import')) {
+    node = document.createElement('style');
+    node.textContent = raw;
+    // Try to extract font-family name from @font-face block
+    const faceMatch = raw.match(/font-family\s*:\s*['"]?([^'";\n]+)['"]?\s*;/i);
+    if (faceMatch) fontName = faceMatch[1].trim().replace(/['"]/g, '');
+  } else {
+    // Treat as a bare URL — inject as a stylesheet link
+    node = document.createElement('link');
+    node.rel = 'stylesheet';
+    node.href = raw;
+  }
+
+  try {
+    document.head.appendChild(node);
+    await document.fonts.ready;
+    if (fontName) {
+      addFontToDropdown(fontName, 'custom');
+      status.textContent = `✓ "${fontName}" loaded.`;
+      if (selectedIds.length > 0) {
+        pushUndo();
+        updateSelectedElements({ fontFamily: fontName });
+        refreshPanel();
+      }
+    } else {
+      status.textContent = '✓ Font injected — type the font-family name to use it.';
+    }
+  } catch (err) {
+    document.head.removeChild(node);
+    status.textContent = `Error: ${err.message}`;
+  }
+});
 // === PLACEHOLDER — export added in Part C ===
 // === PLACEHOLDER — save/load added in Part C ===
 
@@ -2146,6 +2246,7 @@ window.addEventListener('DOMContentLoaded', () => {
   startRenderLoop();
   window.addEventListener('resize', fitCanvas);
   initLocalFonts();
+  initGoogleFontsSelect();
 });
 </script>
 </body>
