@@ -1223,7 +1223,119 @@ function drawSVG(ctx, el) {
   if (!img || !img.complete || img.naturalWidth === 0) return;
   ctx.drawImage(img, -el.width / 2, -el.height / 2, el.width, el.height);
 }
-// === PLACEHOLDER — interaction added in Part B ===
+// === INTERACTION ===
+
+// --- Tool wiring ---
+document.querySelectorAll('.tool-btn[data-tool]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const tool = btn.dataset.tool;
+    if (tool === 'svg') { openSVGModal(); return; }
+    activeTool = tool;
+    document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    updateCanvasCursor();
+  });
+});
+
+function setActiveTool(tool) {
+  activeTool = tool;
+  document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+  const btn = document.querySelector(`.tool-btn[data-tool="${tool}"]`);
+  if (btn) btn.classList.add('active');
+  updateCanvasCursor();
+}
+
+function updateCanvasCursor() {
+  const canvas = document.getElementById('preview-canvas');
+  if (activeTool === 'select') {
+    canvas.style.cursor = 'default';
+  } else {
+    canvas.style.cursor = 'crosshair';
+  }
+}
+
+// --- Element placement on canvas click ---
+function placeElement(type, cx, cy) {
+  pushUndo();
+  const half = Math.min(scene.outputWidth, scene.outputHeight) / 8;
+  const defaults = { x: cx, y: cy, width: half, height: half };
+  if (type === 'line' || type === 'arrow') {
+    defaults.width = half * 2;
+    defaults.height = 0;
+  }
+  if (type === 'text') {
+    defaults.width = half * 2;
+    defaults.height = half / 2;
+  }
+  if (type === 'polygon') {
+    const sidesStr = window.prompt('Number of sides (3–12):', '5');
+    const sides = parseInt(sidesStr);
+    if (!sides || sides < 3 || sides > 12) return;
+    defaults.sides = sides;
+  }
+  const el = createElement(type, defaults);
+  addElement(el);
+  selectedIds = [el.id];
+  setActiveTool('select');
+  refreshPanel();
+}
+
+// --- SVG modal ---
+function openSVGModal() {
+  document.getElementById('svg-modal').classList.remove('hidden');
+}
+function closeSVGModal() {
+  document.getElementById('svg-modal').classList.add('hidden');
+  document.getElementById('svg-paste-area').value = '';
+}
+
+document.getElementById('btn-svg-cancel').addEventListener('click', closeSVGModal);
+
+document.getElementById('btn-svg-upload').addEventListener('click', () => {
+  document.getElementById('svg-file-input').click();
+});
+
+document.getElementById('svg-file-input').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    importSVGString(ev.target.result);
+    closeSVGModal();
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+});
+
+document.getElementById('btn-svg-import').addEventListener('click', () => {
+  const raw = document.getElementById('svg-paste-area').value.trim();
+  if (!raw) return;
+  importSVGString(raw);
+  closeSVGModal();
+});
+
+function importSVGString(raw) {
+  const clean = sanitizeSVG(raw);
+  if (!clean) return;
+  pushUndo();
+  const el = createElement('svg', {
+    x: scene.outputWidth / 2,
+    y: scene.outputHeight / 2,
+    width: Math.min(scene.outputWidth, scene.outputHeight) / 4,
+    height: Math.min(scene.outputWidth, scene.outputHeight) / 4,
+    svgSource: clean,
+  });
+  addElement(el);
+  selectedIds = [el.id];
+  setActiveTool('select');
+  refreshPanel();
+}
+
+// === PLACEHOLDER — hit testing added in Task 2 ===
+// === PLACEHOLDER — drag added in Task 3 ===
+// === PLACEHOLDER — handles added in Task 4 ===
+// === PLACEHOLDER — panel wiring added in Task 5 ===
+// === PLACEHOLDER — layers + keyboard added in Task 6 ===
 // === PLACEHOLDER — fonts added in Part C ===
 // === PLACEHOLDER — export added in Part C ===
 // === PLACEHOLDER — save/load added in Part C ===
