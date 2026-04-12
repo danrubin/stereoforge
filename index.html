@@ -1451,17 +1451,19 @@ function importSVGString(raw) {
 
 // === HIT TESTING ===
 
-function localToWorld(el, lx, ly) {
+function localToWorld(el, lx, ly, xOffset) {
+  if (xOffset === undefined) xOffset = el.depth / 2;
   const cos = Math.cos(el.rotation * Math.PI / 180);
   const sin = Math.sin(el.rotation * Math.PI / 180);
   return {
-    x: el.x + lx * cos - ly * sin,
+    x: el.x + xOffset + lx * cos - ly * sin,
     y: el.y + lx * sin + ly * cos,
   };
 }
 
-function worldToLocal(el, wx, wy) {
-  const dx = wx - el.x;
+function worldToLocal(el, wx, wy, xOffset) {
+  if (xOffset === undefined) xOffset = el.depth / 2;
+  const dx = wx - (el.x + xOffset);
   const dy = wy - el.y;
   const cos = Math.cos(el.rotation * Math.PI / 180);
   const sin = Math.sin(el.rotation * Math.PI / 180);
@@ -1471,18 +1473,27 @@ function worldToLocal(el, wx, wy) {
   };
 }
 
-function hitTestElement(el, px, py) {
-  const local = worldToLocal(el, px, py);
+function hitTestElement(el, px, py, xOffset) {
+  const local = worldToLocal(el, px, py, xOffset);
   return Math.abs(local.x) <= el.width / 2 + 2 &&
          Math.abs(local.y) <= el.height / 2 + 2;
 }
 
 // Returns the topmost visible, unlocked element id at (px, py), or null.
 function hitTest(px, py) {
+  const halfW = scene.outputWidth / 2;
+  const inRight = px >= halfW;
   for (let i = scene.elements.length - 1; i >= 0; i--) {
     const el = scene.elements[i];
     if (!el.visible || el.locked) continue;
-    if (hitTestElement(el, px, py)) return el.id;
+    if (inRight) {
+      // Right panel: element draws at halfW + el.x - el.depth/2
+      // Shift px by -halfW to make it panel-relative, use xOffset = -el.depth/2
+      if (hitTestElement(el, px - halfW, py, -el.depth / 2)) return el.id;
+    } else {
+      // Left panel: element draws at el.x + el.depth/2
+      if (hitTestElement(el, px, py, el.depth / 2)) return el.id;
+    }
   }
   return null;
 }
@@ -1490,18 +1501,22 @@ function hitTest(px, py) {
 // Draw blue outline + fill for selected elements (preview only).
 function drawSelectionOutlines(ctx) {
   if (selectedIds.length === 0) return;
+  const halfW = scene.outputWidth / 2;
   for (const id of selectedIds) {
     const el = scene.elements.find(e => e.id === id);
     if (!el || !el.visible) continue;
-    ctx.save();
-    ctx.translate(el.x, el.y);
-    ctx.rotate(el.rotation * Math.PI / 180);
-    ctx.strokeStyle = 'rgba(74, 158, 255, 0.9)';
-    ctx.lineWidth = 1.5 / previewScale;
-    ctx.setLineDash([4 / previewScale, 4 / previewScale]);
-    ctx.strokeRect(-el.width / 2, -el.height / 2, el.width, el.height);
-    ctx.setLineDash([]);
-    ctx.restore();
+    // Draw outline on both left and right panels with correct depth offsets
+    [el.depth / 2, halfW - el.depth / 2].forEach(xOffset => {
+      ctx.save();
+      ctx.translate(el.x + xOffset, el.y);
+      ctx.rotate(el.rotation * Math.PI / 180);
+      ctx.strokeStyle = 'rgba(74, 158, 255, 0.9)';
+      ctx.lineWidth = 1.5 / previewScale;
+      ctx.setLineDash([4 / previewScale, 4 / previewScale]);
+      ctx.strokeRect(-el.width / 2, -el.height / 2, el.width, el.height);
+      ctx.setLineDash([]);
+      ctx.restore();
+    });
   }
 }
 
@@ -1695,8 +1710,9 @@ document.addEventListener('mouseup', e => {
       selectedIds = scene.elements
         .filter(el => el.visible && !el.locked)
         .filter(el => {
+          const cx = el.x + el.depth / 2;
           const hw = el.width / 2, hh = el.height / 2;
-          return el.x - hw < rx + rw && el.x + hw > rx &&
+          return cx - hw < rx + rw && cx + hw > rx &&
                  el.y - hh < ry + rh && el.y + hh > ry;
         })
         .map(el => el.id);
@@ -1785,6 +1801,7 @@ function drawHandles(ctx, el) {
 
 // Returns { corner, type } or null. Only works for single-element selection.
 function hitTestHandles(px, py) {
+  if (px >= scene.outputWidth / 2) return null;
   if (selectedIds.length !== 1) return null;
   const el = scene.elements.find(e => e.id === selectedIds[0]);
   if (!el) return null;
