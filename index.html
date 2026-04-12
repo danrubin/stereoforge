@@ -977,6 +977,7 @@ function drawScene(ctx, scn, opts = {}) {
     ctx.fillText('R', W - 6, 6);
     ctx.restore();
   }
+  if (showDivider) drawSelectionOutlines(ctx);
 }
 
 /**
@@ -1329,7 +1330,90 @@ function importSVGString(raw) {
   refreshPanel();
 }
 
-// === PLACEHOLDER — hit testing added in Task 2 ===
+// === HIT TESTING ===
+
+function localToWorld(el, lx, ly) {
+  const cos = Math.cos(el.rotation * Math.PI / 180);
+  const sin = Math.sin(el.rotation * Math.PI / 180);
+  return {
+    x: el.x + lx * cos - ly * sin,
+    y: el.y + lx * sin + ly * cos,
+  };
+}
+
+function worldToLocal(el, wx, wy) {
+  const dx = wx - el.x;
+  const dy = wy - el.y;
+  const cos = Math.cos(el.rotation * Math.PI / 180);
+  const sin = Math.sin(el.rotation * Math.PI / 180);
+  return {
+    x:  dx * cos + dy * sin,
+    y: -dx * sin + dy * cos,
+  };
+}
+
+function hitTestElement(el, px, py) {
+  const local = worldToLocal(el, px, py);
+  return Math.abs(local.x) <= el.width / 2 + 2 &&
+         Math.abs(local.y) <= el.height / 2 + 2;
+}
+
+// Returns the topmost visible, unlocked element id at (px, py), or null.
+function hitTest(px, py) {
+  for (let i = scene.elements.length - 1; i >= 0; i--) {
+    const el = scene.elements[i];
+    if (!el.visible || el.locked) continue;
+    if (hitTestElement(el, px, py)) return el.id;
+  }
+  return null;
+}
+
+// Draw blue outline + fill for selected elements (preview only).
+function drawSelectionOutlines(ctx) {
+  if (selectedIds.length === 0) return;
+  for (const id of selectedIds) {
+    const el = scene.elements.find(e => e.id === id);
+    if (!el || !el.visible) continue;
+    ctx.save();
+    ctx.translate(el.x, el.y);
+    ctx.rotate(el.rotation * Math.PI / 180);
+    ctx.strokeStyle = 'rgba(74, 158, 255, 0.9)';
+    ctx.lineWidth = 1.5 / previewScale;
+    ctx.setLineDash([4 / previewScale, 4 / previewScale]);
+    ctx.strokeRect(-el.width / 2, -el.height / 2, el.width, el.height);
+    ctx.setLineDash([]);
+    ctx.restore();
+  }
+}
+
+document.getElementById('preview-canvas').addEventListener('mousedown', handleCanvasMouseDown);
+
+function handleCanvasMouseDown(e) {
+  const { x, y } = canvasPos(e);
+
+  // Shape/text placement tool: place on click and return
+  if (activeTool !== 'select') {
+    placeElement(activeTool, x, y);
+    return;
+  }
+
+  // Select tool: hit test
+  const hitId = hitTest(x, y);
+  if (hitId) {
+    if (e.shiftKey) {
+      if (selectedIds.includes(hitId)) {
+        selectedIds = selectedIds.filter(id => id !== hitId);
+      } else {
+        selectedIds = [...selectedIds, hitId];
+      }
+    } else if (!selectedIds.includes(hitId)) {
+      selectedIds = [hitId];
+    }
+  } else {
+    if (!e.shiftKey) selectedIds = [];
+  }
+  refreshPanel();
+}
 // === PLACEHOLDER — drag added in Task 3 ===
 // === PLACEHOLDER — handles added in Task 4 ===
 // === PLACEHOLDER — panel wiring added in Task 5 ===
