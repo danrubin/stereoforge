@@ -2251,6 +2251,10 @@ document.getElementById('btn-export').addEventListener('click', async () => {
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('Export failed:', err);
+    alert(`Export failed: ${err.message}`);
   } finally {
     btn.disabled = false;
     btn.textContent = 'Export PNG';
