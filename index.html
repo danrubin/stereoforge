@@ -977,7 +977,11 @@ function drawScene(ctx, scn, opts = {}) {
     ctx.fillText('R', W - 6, 6);
     ctx.restore();
   }
-  if (showDivider) drawSelectionOutlines(ctx);
+  if (showDivider) {
+    drawSelectionOutlines(ctx);
+    drawRubberBand(ctx);
+    // handles drawn in Task 4
+  }
 }
 
 /**
@@ -1414,7 +1418,123 @@ function handleCanvasMouseDown(e) {
   }
   refreshPanel();
 }
-// === PLACEHOLDER — drag added in Task 3 ===
+// === DRAG ===
+
+let dragState = null;
+// Shapes:
+// { type: 'move', startX, startY, snaps: [{id, x, y}] }
+// { type: 'rubber-band', startX, startY, currentX, currentY }
+// (resize and rotate shapes added in Task 4)
+
+// Upgrade the mousedown handler to also start drag.
+// Replace handleCanvasMouseDown with this full version:
+document.getElementById('preview-canvas').removeEventListener('mousedown', handleCanvasMouseDown);
+
+function handleCanvasMouseDown(e) {
+  const { x, y } = canvasPos(e);
+
+  if (activeTool !== 'select') {
+    placeElement(activeTool, x, y);
+    return;
+  }
+
+  // Check handles first (populated in Task 4; no-op here)
+  const handle = typeof hitTestHandles === 'function' ? hitTestHandles(x, y) : null;
+  if (handle) return; // Task 4 takes over
+
+  const hitId = hitTest(x, y);
+  if (hitId) {
+    // Select
+    if (e.shiftKey) {
+      if (selectedIds.includes(hitId)) {
+        selectedIds = selectedIds.filter(id => id !== hitId);
+      } else {
+        selectedIds = [...selectedIds, hitId];
+      }
+    } else if (!selectedIds.includes(hitId)) {
+      selectedIds = [hitId];
+    }
+    refreshPanel();
+
+    // Start move drag
+    pushUndo();
+    dragState = {
+      type: 'move',
+      startX: x,
+      startY: y,
+      snaps: selectedIds.map(id => {
+        const el = scene.elements.find(e => e.id === id);
+        return { id, x: el.x, y: el.y };
+      }),
+    };
+  } else {
+    if (!e.shiftKey) selectedIds = [];
+    refreshPanel();
+    // Start rubber-band
+    dragState = { type: 'rubber-band', startX: x, startY: y, currentX: x, currentY: y };
+  }
+}
+
+document.getElementById('preview-canvas').addEventListener('mousedown', handleCanvasMouseDown);
+
+document.addEventListener('mousemove', e => {
+  if (!dragState) return;
+  const { x, y } = canvasPos(e);
+
+  if (dragState.type === 'move') {
+    const dx = x - dragState.startX;
+    const dy = y - dragState.startY;
+    for (const snap of dragState.snaps) {
+      updateElement(snap.id, { x: snap.x + dx, y: snap.y + dy });
+    }
+    refreshPanel();
+  }
+
+  if (dragState.type === 'rubber-band') {
+    dragState.currentX = x;
+    dragState.currentY = y;
+  }
+});
+
+document.addEventListener('mouseup', e => {
+  if (!dragState) return;
+  if (dragState.type === 'rubber-band') {
+    const rx = Math.min(dragState.startX, dragState.currentX);
+    const ry = Math.min(dragState.startY, dragState.currentY);
+    const rw = Math.abs(dragState.currentX - dragState.startX);
+    const rh = Math.abs(dragState.currentY - dragState.startY);
+    if (rw > 4 || rh > 4) {
+      selectedIds = scene.elements
+        .filter(el => el.visible && !el.locked)
+        .filter(el => {
+          const hw = el.width / 2, hh = el.height / 2;
+          return el.x - hw < rx + rw && el.x + hw > rx &&
+                 el.y - hh < ry + rh && el.y + hh > ry;
+        })
+        .map(el => el.id);
+      refreshPanel();
+    }
+  }
+  dragState = null;
+});
+
+// Draw rubber-band rect in drawScene. Called from inside drawScene (preview only).
+function drawRubberBand(ctx) {
+  if (!dragState || dragState.type !== 'rubber-band') return;
+  const rx = Math.min(dragState.startX, dragState.currentX);
+  const ry = Math.min(dragState.startY, dragState.currentY);
+  const rw = Math.abs(dragState.currentX - dragState.startX);
+  const rh = Math.abs(dragState.currentY - dragState.startY);
+  ctx.save();
+  ctx.strokeStyle = 'rgba(74, 158, 255, 0.8)';
+  ctx.fillStyle = 'rgba(74, 158, 255, 0.08)';
+  ctx.lineWidth = 1 / previewScale;
+  ctx.setLineDash([4 / previewScale, 3 / previewScale]);
+  ctx.fillRect(rx, ry, rw, rh);
+  ctx.strokeRect(rx, ry, rw, rh);
+  ctx.setLineDash([]);
+  ctx.restore();
+}
 // === PLACEHOLDER — handles added in Task 4 ===
 // === PLACEHOLDER — panel wiring added in Task 5 ===
 // === PLACEHOLDER — layers + keyboard added in Task 6 ===
