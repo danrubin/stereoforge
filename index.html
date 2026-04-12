@@ -980,7 +980,10 @@ function drawScene(ctx, scn, opts = {}) {
   if (showDivider) {
     drawSelectionOutlines(ctx);
     drawRubberBand(ctx);
-    // handles drawn in Task 4
+    if (selectedIds.length === 1) {
+      const selEl = scene.elements.find(e => e.id === selectedIds[0]);
+      if (selEl && selEl.visible) drawHandles(ctx, selEl);
+    }
   }
 }
 
@@ -1438,9 +1441,37 @@ function handleCanvasMouseDown(e) {
     return;
   }
 
-  // Check handles first (populated in Task 4; no-op here)
   const handle = typeof hitTestHandles === 'function' ? hitTestHandles(x, y) : null;
-  if (handle) return; // Task 4 takes over
+  if (handle) {
+    e.preventDefault();
+    const el = scene.elements.find(e => e.id === selectedIds[0]);
+    pushUndo();
+    if (handle.type === 'rotate') {
+      dragState = {
+        type: 'rotate',
+        startAngle: Math.atan2(y - el.y, x - el.x),
+        startRot: el.rotation,
+        snap: { id: el.id },
+      };
+    } else {
+      // Find the anchor corner (opposite corner/edge in world space)
+      const opp = {
+        tl: 'br', tm: 'bm', tr: 'bl', mr: 'ml',
+        br: 'tl', bm: 'tm', bl: 'tr', ml: 'mr',
+      }[handle.corner];
+      const oppDef = HANDLE_CORNERS.find(h => h.corner === opp);
+      const anchorWorld = getHandleWorld(el, oppDef);
+      dragState = {
+        type: 'resize',
+        corner: handle.corner,
+        anchorWorld,
+        snap: { id: el.id, rotation: el.rotation, width: el.width, height: el.height },
+        shiftKey: false,
+        origAspect: el.width / el.height,
+      };
+    }
+    return;
+  }
 
   const hitId = hitTest(x, y);
   if (hitId) {
@@ -1494,6 +1525,51 @@ document.addEventListener('mousemove', e => {
     dragState.currentX = x;
     dragState.currentY = y;
   }
+
+  if (dragState && dragState.type === 'resize') {
+    const { corner, anchorWorld, snap } = dragState;
+    const el = scene.elements.find(e => e.id === snap.id);
+    const cos = Math.cos(snap.rotation * Math.PI / 180);
+    const sin = Math.sin(snap.rotation * Math.PI / 180);
+    // Vector from anchor to mouse in world space
+    const dx = x - anchorWorld.x;
+    const dy = y - anchorWorld.y;
+    // Project onto element local axes
+    const localX = dx * cos + dy * sin;
+    const localY = -dx * sin + dy * cos;
+
+    let newW = snap.width, newH = snap.height;
+    if (['tl', 'tr', 'bl', 'br'].includes(corner)) {
+      newW = Math.max(10, Math.abs(localX));
+      newH = Math.max(10, Math.abs(localY));
+      if (e.shiftKey) {
+        const side = Math.max(newW, newH);
+        newW = newH = side;
+      }
+    } else if (['tm', 'bm'].includes(corner)) {
+      newH = Math.max(10, Math.abs(localY));
+    } else {
+      newW = Math.max(10, Math.abs(localX));
+    }
+
+    // New center = midpoint(anchor, dragged corner in world)
+    const newCX = (anchorWorld.x + x) / 2;
+    const newCY = (anchorWorld.y + y) / 2;
+    updateElement(snap.id, { x: newCX, y: newCY, width: newW, height: newH });
+    refreshPanel();
+  }
+
+  if (dragState && dragState.type === 'rotate') {
+    const { snap } = dragState;
+    const el = scene.elements.find(e => e.id === snap.id);
+    const currentAngle = Math.atan2(y - el.y, x - el.x);
+    const delta = (currentAngle - dragState.startAngle) * (180 / Math.PI);
+    let newRot = (dragState.startRot + delta) % 360;
+    if (newRot < 0) newRot += 360;
+    if (e.shiftKey) newRot = Math.round(newRot / 15) * 15;
+    updateElement(snap.id, { rotation: newRot });
+    refreshPanel();
+  }
 });
 
 document.addEventListener('mouseup', e => {
@@ -1535,7 +1611,103 @@ function drawRubberBand(ctx) {
   ctx.setLineDash([]);
   ctx.restore();
 }
-// === PLACEHOLDER — handles added in Task 4 ===
+// === HANDLES ===
+
+const HANDLE_CORNERS = [
+  { lx: -1, ly: -1, corner: 'tl', cursor: 'nw-resize' },
+  { lx:  0, ly: -1, corner: 'tm', cursor: 'n-resize'  },
+  { lx:  1, ly: -1, corner: 'tr', cursor: 'ne-resize' },
+  { lx:  1, ly:  0, corner: 'mr', cursor: 'e-resize'  },
+  { lx:  1, ly:  1, corner: 'br', cursor: 'se-resize' },
+  { lx:  0, ly:  1, corner: 'bm', cursor: 's-resize'  },
+  { lx: -1, ly:  1, corner: 'bl', cursor: 'sw-resize' },
+  { lx: -1, ly:  0, corner: 'ml', cursor: 'w-resize'  },
+];
+const ROT_HANDLE_OFFSET = 20; // px above top-center in element local space
+
+function getHandleWorld(el, hDef) {
+  const lx = hDef.lx * el.width / 2;
+  const ly = hDef.ly * el.height / 2;
+  return localToWorld(el, lx, ly);
+}
+
+function getRotHandleWorld(el) {
+  return localToWorld(el, 0, -el.height / 2 - ROT_HANDLE_OFFSET);
+}
+
+function drawHandles(ctx, el) {
+  const hs = 7 / previewScale; // handle size in output pixels
+  ctx.save();
+
+  // Draw line to rotation handle
+  const rotPt = getRotHandleWorld(el);
+  const topMid = getHandleWorld(el, HANDLE_CORNERS.find(h => h.corner === 'tm'));
+  ctx.strokeStyle = 'rgba(74, 158, 255, 0.7)';
+  ctx.lineWidth = 1 / previewScale;
+  ctx.beginPath();
+  ctx.moveTo(topMid.x, topMid.y);
+  ctx.lineTo(rotPt.x, rotPt.y);
+  ctx.stroke();
+
+  // Rotation handle (circle)
+  ctx.fillStyle = '#4a9eff';
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 1 / previewScale;
+  ctx.beginPath();
+  ctx.arc(rotPt.x, rotPt.y, hs / 2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  // Resize handles (squares)
+  for (const h of HANDLE_CORNERS) {
+    const pt = getHandleWorld(el, h);
+    ctx.fillStyle = '#fff';
+    ctx.strokeStyle = '#4a9eff';
+    ctx.lineWidth = 1 / previewScale;
+    ctx.fillRect(pt.x - hs / 2, pt.y - hs / 2, hs, hs);
+    ctx.strokeRect(pt.x - hs / 2, pt.y - hs / 2, hs, hs);
+  }
+
+  ctx.restore();
+}
+
+// Returns { corner, type } or null. Only works for single-element selection.
+function hitTestHandles(px, py) {
+  if (selectedIds.length !== 1) return null;
+  const el = scene.elements.find(e => e.id === selectedIds[0]);
+  if (!el) return null;
+  const hs = 10 / previewScale; // slightly larger hit zone
+
+  // Rotation handle
+  const rotPt = getRotHandleWorld(el);
+  if (Math.abs(px - rotPt.x) <= hs && Math.abs(py - rotPt.y) <= hs) {
+    return { corner: 'rot', type: 'rotate' };
+  }
+
+  // Resize handles
+  for (const h of HANDLE_CORNERS) {
+    const pt = getHandleWorld(el, h);
+    if (Math.abs(px - pt.x) <= hs && Math.abs(py - pt.y) <= hs) {
+      return { corner: h.corner, type: 'resize', cursor: h.cursor };
+    }
+  }
+  return null;
+}
+document.getElementById('preview-canvas').addEventListener('mousemove', e => {
+  if (dragState) return;
+  if (activeTool !== 'select') return;
+  const { x, y } = canvasPos(e);
+  const handle = hitTestHandles(x, y);
+  const canvas = document.getElementById('preview-canvas');
+  if (handle) {
+    canvas.style.cursor = handle.type === 'rotate' ? 'grab' : handle.cursor;
+  } else if (hitTest(x, y)) {
+    canvas.style.cursor = 'move';
+  } else {
+    canvas.style.cursor = 'default';
+  }
+});
+
 // === PLACEHOLDER — panel wiring added in Task 5 ===
 // === PLACEHOLDER — layers + keyboard added in Task 6 ===
 // === PLACEHOLDER — fonts added in Part C ===
