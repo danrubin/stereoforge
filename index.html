@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>StereoForge</title>
+  <style>
+    :root {
+      --bg: #111111;
+      --panel: #1c1c1c;
+      --surface: #252525;
+      --surface2: #2a2a2a;
+      --border: #2a2a2a;
+      --border-active: #383838;
+      --accent: #3a7bd5;
+      --accent-light: #4a9eff;
+      --text-primary: #cccccc;
+      --text-secondary: #888888;
+      --text-muted: #555555;
+      --canvas-bg: #171717;
+      --danger: #cc4444;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text-primary);
+      font-size: 11px;
+    }
+
+    /* ── App shell ── */
+    #app { display: flex; flex-direction: column; height: 100vh; }
+
+    /* ── Top bar ── */
+    #topbar {
+      height: 38px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 10px;
+      gap: 8px;
+      flex-shrink: 0;
+      z-index: 10;
+    }
+    .wordmark {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      color: var(--text-primary);
+      white-space: nowrap;
+    }
+    .topbar-sep { flex: 1; }
+    .topbar-label {
+      font-size: 10px;
+      color: var(--text-secondary);
+    }
+    select.topbar-select {
+      background: var(--surface);
+      border: 1px solid var(--border-active);
+      border-radius: 4px;
+      color: var(--text-primary);
+      padding: 3px 6px;
+      font-size: 10px;
+      cursor: pointer;
+      outline: none;
+    }
+    select.topbar-select:focus { border-color: var(--accent); }
+    input.topbar-number {
+      background: var(--surface);
+      border: 1px solid var(--border-active);
+      border-radius: 4px;
+      color: var(--text-primary);
+      padding: 3px 6px;
+      font-size: 10px;
+      width: 60px;
+      outline: none;
+      display: none;
+    }
+    input.topbar-number:focus { border-color: var(--accent); }
+    input[type="color"].topbar-color {
+      width: 24px;
+      height: 24px;
+      border: 1px solid var(--border-active);
+      border-radius: 3px;
+      padding: 1px;
+      background: none;
+      cursor: pointer;
+    }
+    .btn {
+      border: none;
+      border-radius: 4px;
+      padding: 4px 10px;
+      font-size: 10px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover { background: #4a8ae5; }
+    .btn-secondary {
+      background: var(--surface2);
+      border: 1px solid var(--border-active);
+      color: var(--text-primary);
+    }
+    .btn-secondary:hover { background: var(--surface); }
+    .btn-danger { background: var(--danger); color: #fff; }
+
+    /* ── Workspace ── */
+    #workspace { flex: 1; display: flex; overflow: hidden; }
+
+    /* ── Left toolbar ── */
+    #toolbar {
+      width: 44px;
+      background: var(--panel);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 8px 0;
+      gap: 3px;
+      flex-shrink: 0;
+      overflow-y: auto;
+    }
+    .tool-btn {
+      width: 30px;
+      height: 30px;
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 5px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: var(--text-secondary);
+      font-size: 12px;
+      font-weight: 700;
+      padding: 0;
+    }
+    .tool-btn:hover { background: var(--surface2); border-color: var(--border-active); color: var(--text-primary); }
+    .tool-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .toolbar-sep {
+      width: 24px;
+      height: 1px;
+      background: var(--border);
+      margin: 3px 0;
+    }
+
+    /* ── Canvas area ── */
+    #canvas-area {
+      flex: 1;
+      background: var(--canvas-bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      position: relative;
+    }
+    #preview-canvas {
+      display: block;
+      cursor: crosshair;
+      image-rendering: pixelated;
+    }
+
+    /* ── Right panel ── */
+    #right-panel {
+      width: 220px;
+      background: var(--panel);
+      border-left: 1px solid var(--border);
+      overflow-y: auto;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+    }
+    .panel-section {
+      border-bottom: 1px solid var(--border);
+      padding: 10px;
+    }
+    .panel-section-title {
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+    .panel-row {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 4px;
+      align-items: center;
+    }
+    .panel-row:last-child { margin-bottom: 0; }
+    .panel-field {
+      flex: 1;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 4px 6px;
+      position: relative;
+    }
+    .panel-field-label {
+      font-size: 7px;
+      color: var(--text-muted);
+      margin-bottom: 2px;
+      text-transform: uppercase;
+    }
+    .panel-field input[type="number"],
+    .panel-field input[type="text"] {
+      width: 100%;
+      background: none;
+      border: none;
+      outline: none;
+      color: var(--text-primary);
+      font-size: 11px;
+      padding: 0;
+      font-family: inherit;
+    }
+    /* Remove number input spinners */
+    .panel-field input[type="number"]::-webkit-inner-spin-button,
+    .panel-field input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; }
+    .panel-field input[type="number"] { -moz-appearance: textfield; }
+
+    /* Depth slider */
+    .depth-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 8px;
+      color: var(--text-muted);
+      margin-bottom: 3px;
+    }
+    .depth-value {
+      font-size: 10px;
+      color: var(--accent-light);
+      font-weight: 600;
+      text-align: center;
+    }
+    .depth-slider-wrap {
+      position: relative;
+      height: 6px;
+      background: var(--surface2);
+      border-radius: 3px;
+      margin: 4px 0;
+    }
+    .depth-slider-track {
+      position: absolute;
+      top: 0; bottom: 0;
+      background: #2a4a7f;
+      border-radius: 3px;
+    }
+    input[type="range"].depth-range {
+      position: absolute;
+      top: -7px;
+      left: 0;
+      width: 100%;
+      opacity: 0;
+      cursor: pointer;
+      height: 20px;
+      margin: 0;
+    }
+    .depth-thumb {
+      position: absolute;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 14px;
+      height: 18px;
+      background: var(--accent-light);
+      border-radius: 3px;
+      pointer-events: none;
+    }
+
+    /* Style toggle */
+    .style-toggle {
+      display: flex;
+      gap: 3px;
+      margin-bottom: 6px;
+    }
+    .style-toggle-btn {
+      flex: 1;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 4px 3px;
+      text-align: center;
+      font-size: 8px;
+      color: var(--text-secondary);
+      cursor: pointer;
+    }
+    .style-toggle-btn.active {
+      background: var(--surface2);
+      border-color: var(--accent);
+      color: var(--text-primary);
+    }
+
+    /* Color row */
+    .color-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 0;
+    }
+    .color-swatch {
+      width: 20px;
+      height: 20px;
+      border-radius: 3px;
+      border: 1px solid var(--border-active);
+      flex-shrink: 0;
+      cursor: pointer;
+    }
+    .color-swatch-input {
+      width: 20px;
+      height: 20px;
+      border-radius: 3px;
+      border: 1px solid var(--border-active);
+      flex-shrink: 0;
+      cursor: pointer;
+      padding: 1px;
+    }
+    .color-label { color: var(--text-secondary); font-size: 9px; flex: 1; }
+
+    /* Element action buttons */
+    .action-btns { display: flex; flex-wrap: wrap; gap: 3px; }
+    .action-btn {
+      background: var(--surface);
+      border: 1px solid var(--border-active);
+      border-radius: 3px;
+      padding: 3px 7px;
+      font-size: 9px;
+      color: var(--text-secondary);
+      cursor: pointer;
+    }
+    .action-btn:hover { color: var(--text-primary); border-color: var(--accent); }
+    .action-btn.danger { color: var(--danger); }
+    .action-btn.danger:hover { border-color: var(--danger); }
+
+    /* Layers list */
+    .layer-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 7px;
+      border-radius: 3px;
+      margin-bottom: 2px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      cursor: pointer;
+      user-select: none;
+    }
+    .layer-item:hover { border-color: var(--border-active); }
+    .layer-item.selected { background: #3a7bd520; border-color: #3a7bd550; }
+    .layer-icon { font-size: 9px; color: var(--text-muted); flex-shrink: 0; width: 12px; }
+    .layer-name { flex: 1; font-size: 10px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .layer-item.selected .layer-name { color: var(--text-primary); }
+    .layer-vis {
+      font-size: 10px;
+      color: var(--text-muted);
+      flex-shrink: 0;
+      cursor: pointer;
+    }
+
+    /* No-selection placeholder */
+    #no-selection {
+      padding: 16px 10px;
+      font-size: 10px;
+      color: var(--text-muted);
+      text-align: center;
+    }
+
+    /* Modal overlay */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    .modal-overlay.hidden { display: none; }
+    .modal {
+      background: var(--panel);
+      border: 1px solid var(--border-active);
+      border-radius: 8px;
+      padding: 16px;
+      width: 480px;
+      max-width: 90vw;
+    }
+    .modal-title { font-size: 13px; font-weight: 600; margin-bottom: 12px; }
+    .modal textarea {
+      width: 100%;
+      height: 180px;
+      background: var(--bg);
+      border: 1px solid var(--border-active);
+      border-radius: 4px;
+      color: var(--text-primary);
+      font-family: monospace;
+      font-size: 11px;
+      padding: 8px;
+      resize: vertical;
+      outline: none;
+    }
+    .modal-btns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
+
+    /* Inline text editor */
+    #text-editor-overlay {
+      position: absolute;
+      pointer-events: none;
+      display: none;
+      z-index: 5;
+    }
+    #text-editor {
+      position: absolute;
+      background: transparent;
+      border: 1px dashed var(--accent);
+      color: transparent;
+      caret-color: var(--accent);
+      outline: none;
+      resize: none;
+      font-family: inherit;
+      pointer-events: all;
+    }
+
+    /* Mobile layout */
+    @media (max-width: 768px) {
+      #toolbar {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        height: auto;
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: center;
+        padding: 6px;
+        border-right: none;
+        border-top: 1px solid var(--border);
+        z-index: 20;
+      }
+      #workspace { flex-direction: column; }
+      #canvas-area { flex: 1; }
+      #right-panel {
+        position: fixed;
+        bottom: -100%;
+        left: 0;
+        width: 100%;
+        max-height: 50vh;
+        border-left: none;
+        border-top: 1px solid var(--border);
+        transition: bottom 0.25s ease;
+        z-index: 15;
+      }
+      #right-panel.open { bottom: 52px; }
+    }
+
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <!-- Top bar -->
+  <div id="topbar">
+    <span class="wordmark">STEREOFORGE</span>
+    <span class="topbar-label">Size:</span>
+    <select class="topbar-select" id="preset-select">
+      <option value="ig-portrait">Instagram Portrait 1080×1350</option>
+      <option value="ig-square">Instagram Square 1080×1080</option>
+      <option value="twitter">Twitter/X 1200×675</option>
+      <option value="facebook">Facebook 1200×630</option>
+      <option value="custom">Custom…</option>
+    </select>
+    <input class="topbar-number" type="number" id="custom-w" placeholder="W" min="100" max="6000">
+    <input class="topbar-number" type="number" id="custom-h" placeholder="H" min="100" max="6000">
+    <span class="topbar-label">BG:</span>
+    <input type="color" class="topbar-color" id="bg-color-input" value="#000000" title="Background Color">
+    <div class="topbar-sep"></div>
+    <button class="btn btn-primary" id="btn-export">Export PNG</button>
+    <button class="btn btn-secondary" id="btn-save">Save</button>
+    <button class="btn btn-secondary" id="btn-load">Load</button>
+    <input type="file" id="load-file-input" accept=".json" style="display:none">
+  </div>
+
+  <!-- Workspace -->
+  <div id="workspace">
+
+    <!-- Left toolbar -->
+    <div id="toolbar">
+      <button class="tool-btn active" data-tool="select" title="Select (V)">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <path d="M2 1.5L8.5 11l-2-3.5L2 1.5z" fill="currentColor"/>
+          <path d="M2 1.5l10 4-4.5 1L11 11l-2-1L6.5 7.5 2 1.5z" fill="currentColor" opacity="0.4"/>
+        </svg>
+      </button>
+      <div class="toolbar-sep"></div>
+      <button class="tool-btn" data-tool="rect" title="Rectangle">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <rect x="1.5" y="3" width="11" height="8" stroke="currentColor" stroke-width="1.5" rx="1"/>
+        </svg>
+      </button>
+      <button class="tool-btn" data-tool="ellipse" title="Ellipse">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <ellipse cx="7" cy="7" rx="5.5" ry="4" stroke="currentColor" stroke-width="1.5"/>
+        </svg>
+      </button>
+      <button class="tool-btn" data-tool="triangle" title="Triangle">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <path d="M7 1.5L13 12.5H1L7 1.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+        </svg>
+      </button>
+      <button class="tool-btn" data-tool="polygon" title="Polygon">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <path d="M7 1L12.5 4.5V9.5L7 13L1.5 9.5V4.5L7 1Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+        </svg>
+      </button>
+      <button class="tool-btn" data-tool="line" title="Line">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <line x1="1.5" y1="12.5" x2="12.5" y2="1.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <button class="tool-btn" data-tool="arrow" title="Arrow">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <line x1="1.5" y1="7" x2="10" y2="7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          <path d="M8 4L12.5 7L8 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        </svg>
+      </button>
+      <div class="toolbar-sep"></div>
+      <button class="tool-btn" data-tool="text" title="Text (T)" style="font-weight:700;font-size:13px;">T</button>
+      <button class="tool-btn" data-tool="svg" title="SVG Import" style="font-size:8px;font-weight:700;letter-spacing:-0.5px;">&lt;/&gt;</button>
+    </div>
+
+    <!-- Canvas area -->
+    <div id="canvas-area">
+      <canvas id="preview-canvas"></canvas>
+      <div id="text-editor-overlay">
+        <textarea id="text-editor" rows="3"></textarea>
+      </div>
+    </div>
+
+    <!-- Right panel -->
+    <div id="right-panel">
+      <div id="no-selection">Select an element to edit its properties</div>
+
+      <!-- Transform section -->
+      <div class="panel-section hidden" id="section-transform">
+        <div class="panel-section-title">Transform</div>
+        <div class="panel-row">
+          <div class="panel-field">
+            <div class="panel-field-label">X</div>
+            <input type="number" id="prop-x">
+          </div>
+          <div class="panel-field">
+            <div class="panel-field-label">Y</div>
+            <input type="number" id="prop-y">
+          </div>
+        </div>
+        <div class="panel-row">
+          <div class="panel-field">
+            <div class="panel-field-label">W</div>
+            <input type="number" id="prop-w">
+          </div>
+          <div class="panel-field">
+            <div class="panel-field-label">H</div>
+            <input type="number" id="prop-h">
+          </div>
+        </div>
+        <div class="panel-row">
+          <div class="panel-field" style="flex:0.5">
+            <div class="panel-field-label">Rotation °</div>
+            <input type="number" id="prop-rot" step="1">
+          </div>
+        </div>
+      </div>
+
+      <!-- Depth section -->
+      <div class="panel-section hidden" id="section-depth">
+        <div class="panel-section-title">Stereo Depth</div>
+        <div class="depth-labels">
+          <span>← Behind</span>
+          <span class="depth-value" id="depth-readout">0 px</span>
+          <span>Front →</span>
+        </div>
+        <div class="depth-slider-wrap">
+          <div class="depth-slider-track" id="depth-track"></div>
+          <div class="depth-thumb" id="depth-thumb"></div>
+          <input type="range" class="depth-range" id="prop-depth" min="-100" max="100" step="1" value="0">
+        </div>
+        <div class="panel-row" style="margin-top:6px;">
+          <div class="panel-field" style="flex:0.5;">
+            <div class="panel-field-label">Value px</div>
+            <input type="number" id="prop-depth-num" step="1">
+          </div>
+        </div>
+      </div>
+
+      <!-- Style section -->
+      <div class="panel-section hidden" id="section-style">
+        <div class="panel-section-title">Style</div>
+        <div class="style-toggle" id="fill-style-toggle">
+          <div class="style-toggle-btn active" data-style="solid">Solid</div>
+          <div class="style-toggle-btn" data-style="outline">Outline</div>
+          <div class="style-toggle-btn" data-style="both">Both</div>
+        </div>
+        <div class="color-row">
+          <input type="color" class="color-swatch-input" id="prop-fill-color" value="#ffffff" title="Fill color">
+          <span class="color-label">Fill</span>
+        </div>
+        <div class="color-row">
+          <input type="color" class="color-swatch-input" id="prop-stroke-color" value="#ffffff" title="Stroke color">
+          <span class="color-label">Stroke</span>
+        </div>
+        <div class="panel-row" style="margin-top:4px;">
+          <div class="panel-field" style="flex:0.5;">
+            <div class="panel-field-label">Stroke Weight</div>
+            <input type="number" id="prop-stroke-w" min="0.5" step="0.5">
+          </div>
+        </div>
+      </div>
+
+      <!-- Typography section (text elements only) -->
+      <div class="panel-section hidden" id="section-typography">
+        <div class="panel-section-title">Typography</div>
+        <div class="panel-row">
+          <div class="panel-field" style="flex:1;">
+            <div class="panel-field-label">Font Family</div>
+            <select id="prop-font-family" style="width:100%;background:none;border:none;outline:none;color:var(--text-primary);font-size:11px;cursor:pointer;font-family:inherit;"></select>
+          </div>
+        </div>
+        <div id="font-api-note" class="hidden" style="font-size:9px;color:var(--text-muted);margin:2px 0 6px;padding:4px 6px;background:var(--surface);border-radius:3px;">
+          Full system font access requires Chrome or Edge.
+        </div>
+        <div class="panel-row">
+          <div class="panel-field">
+            <div class="panel-field-label">Size px</div>
+            <input type="number" id="prop-font-size" min="6" max="1000">
+          </div>
+          <div class="panel-field">
+            <div class="panel-field-label">Weight</div>
+            <select id="prop-font-weight" style="width:100%;background:none;border:none;outline:none;color:var(--text-primary);font-size:11px;cursor:pointer;font-family:inherit;">
+              <option value="100">Thin</option>
+              <option value="300">Light</option>
+              <option value="400">Regular</option>
+              <option value="500">Medium</option>
+              <option value="600">Semi-Bold</option>
+              <option value="700">Bold</option>
+              <option value="800">Extra-Bold</option>
+              <option value="900">Black</option>
+            </select>
+          </div>
+        </div>
+        <div class="panel-row">
+          <div class="panel-field">
+            <div class="panel-field-label">Letter Spacing</div>
+            <input type="number" id="prop-letter-spacing" step="1">
+          </div>
+          <div class="panel-field">
+            <div class="panel-field-label">Line Height</div>
+            <input type="number" id="prop-line-height" step="0.05" min="0.5" max="5">
+          </div>
+        </div>
+        <div class="panel-row">
+          <div class="panel-field" style="flex:0.6;">
+            <div class="panel-field-label">Align</div>
+            <select id="prop-text-align" style="width:100%;background:none;border:none;outline:none;color:var(--text-primary);font-size:11px;cursor:pointer;font-family:inherit;">
+              <option value="left">Left</option>
+              <option value="center">Center</option>
+              <option value="right">Right</option>
+            </select>
+          </div>
+          <div class="panel-field" style="flex:0.4;display:flex;align-items:center;justify-content:center;">
+            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;">
+              <input type="checkbox" id="prop-italic" style="cursor:pointer;">
+              <span style="font-size:9px;color:var(--text-secondary);font-style:italic;">Italic</span>
+            </label>
+          </div>
+        </div>
+        <!-- Google Fonts picker -->
+        <div style="margin-top:6px;">
+          <div class="panel-section-title" style="margin-bottom:4px;">Google Fonts</div>
+          <select id="gfont-select" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--text-primary);padding:4px;font-size:10px;outline:none;cursor:pointer;"></select>
+        </div>
+        <!-- Custom font input -->
+        <div style="margin-top:8px;">
+          <div class="panel-section-title" style="margin-bottom:4px;">Custom Font</div>
+          <textarea id="custom-font-input" rows="3"
+            placeholder="Paste a <link> tag, @font-face block, or kit URL"
+            style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--text-primary);font-family:monospace;font-size:9px;padding:5px;resize:none;outline:none;"></textarea>
+          <div class="panel-row" style="margin-top:4px;">
+            <button class="btn btn-secondary" style="width:100%;font-size:9px;" id="btn-apply-custom-font">Apply Font</button>
+          </div>
+          <div id="custom-font-status" style="font-size:9px;color:var(--text-muted);margin-top:3px;min-height:14px;"></div>
+        </div>
+      </div>
+
+      <!-- Element actions section -->
+      <div class="panel-section hidden" id="section-actions">
+        <div class="panel-section-title">Element</div>
+        <div class="action-btns">
+          <button class="action-btn" id="btn-fwd">↑ Fwd</button>
+          <button class="action-btn" id="btn-back">↓ Back</button>
+          <button class="action-btn" id="btn-dup">⎘ Dup</button>
+          <button class="action-btn danger" id="btn-del">✕ Del</button>
+          <button class="action-btn" id="btn-vis">👁 Show</button>
+          <button class="action-btn" id="btn-lock">🔓 Lock</button>
+        </div>
+      </div>
+
+      <!-- Layers list section -->
+      <div class="panel-section" id="section-layers" style="flex:1;overflow-y:auto;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <div class="panel-section-title" style="margin-bottom:0;">Layers</div>
+          <button class="action-btn danger" id="btn-clear" style="font-size:8px;padding:2px 5px;">Clear All</button>
+        </div>
+        <div id="layers-list"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SVG Import modal -->
+<div class="modal-overlay hidden" id="svg-modal">
+  <div class="modal">
+    <div class="modal-title">Import SVG</div>
+    <div style="display:flex;gap:8px;margin-bottom:8px;">
+      <button class="btn btn-secondary" id="btn-svg-upload">Upload .svg file</button>
+      <input type="file" id="svg-file-input" accept=".svg" style="display:none">
+      <span style="font-size:10px;color:var(--text-muted);align-self:center;">or paste below</span>
+    </div>
+    <textarea id="svg-paste-area" placeholder="Paste raw SVG markup here…"></textarea>
+    <div class="modal-btns">
+      <button class="btn btn-secondary" id="btn-svg-cancel">Cancel</button>
+      <button class="btn btn-primary" id="btn-svg-import">Import</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// === PLACEHOLDER — JS sections added in Tasks 2–6 ===
+</script>
+</body>
+</html>
