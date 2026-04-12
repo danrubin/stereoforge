@@ -1018,7 +1018,99 @@ function startRenderLoop() {
   }
   animFrameId = requestAnimationFrame(frame);
 }
-// === PLACEHOLDER — shapes added in Task 4 ===
+// === SHAPE RENDERING ===
+
+/**
+ * Called from drawElement after translate/rotate.
+ * All drawing is relative to element center (0, 0).
+ */
+function dispatchDraw(ctx, el) {
+  switch (el.type) {
+    case 'rect':     drawRect(ctx, el);     break;
+    case 'ellipse':  drawEllipse(ctx, el);  break;
+    case 'triangle': drawTriangle(ctx, el); break;
+    case 'polygon':  drawPolygon(ctx, el);  break;
+    case 'line':     drawLine(ctx, el);     break;
+    case 'arrow':    drawArrow(ctx, el);    break;
+    case 'text':     if (typeof drawText === 'function') drawText(ctx, el); break;
+    case 'svg':      if (typeof drawSVG  === 'function') drawSVG(ctx, el);  break;
+  }
+}
+
+function doFillStroke(ctx, el) {
+  if (el.fillStyle === 'solid' || el.fillStyle === 'both')   ctx.fill();
+  if (el.fillStyle === 'outline' || el.fillStyle === 'both') ctx.stroke();
+}
+
+function drawRect(ctx, el) {
+  const x = -el.width / 2;
+  const y = -el.height / 2;
+  ctx.beginPath();
+  ctx.rect(x, y, el.width, el.height);
+  doFillStroke(ctx, el);
+}
+
+function drawEllipse(ctx, el) {
+  ctx.beginPath();
+  ctx.ellipse(0, 0, el.width / 2, el.height / 2, 0, 0, Math.PI * 2);
+  doFillStroke(ctx, el);
+}
+
+function drawTriangle(ctx, el) {
+  const hw = el.width / 2;
+  const hh = el.height / 2;
+  ctx.beginPath();
+  ctx.moveTo(0, -hh);
+  ctx.lineTo(hw, hh);
+  ctx.lineTo(-hw, hh);
+  ctx.closePath();
+  doFillStroke(ctx, el);
+}
+
+function drawPolygon(ctx, el) {
+  const sides = Math.max(3, el.sides || 6);
+  const rx = el.width / 2;
+  const ry = el.height / 2;
+  ctx.beginPath();
+  for (let i = 0; i < sides; i++) {
+    const angle = (i / sides) * Math.PI * 2 - Math.PI / 2;
+    const px = Math.cos(angle) * rx;
+    const py = Math.sin(angle) * ry;
+    i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  doFillStroke(ctx, el);
+}
+
+function drawLine(ctx, el) {
+  const hw = el.width / 2;
+  ctx.beginPath();
+  ctx.moveTo(-hw, 0);
+  ctx.lineTo(hw, 0);
+  ctx.stroke();
+}
+
+function drawArrow(ctx, el) {
+  const hw = el.width / 2;
+  const headW  = Math.max(8, el.strokeWidth * 4);
+  const headH  = Math.max(8, el.strokeWidth * 4);
+  const shaftEnd = hw - headW;
+
+  // Shaft
+  ctx.beginPath();
+  ctx.moveTo(-hw, 0);
+  ctx.lineTo(shaftEnd, 0);
+  ctx.stroke();
+
+  // Head
+  ctx.beginPath();
+  ctx.moveTo(hw, 0);
+  ctx.lineTo(shaftEnd, -headH / 2);
+  ctx.lineTo(shaftEnd,  headH / 2);
+  ctx.closePath();
+  ctx.fill();
+  if (el.fillStyle === 'outline' || el.fillStyle === 'both') ctx.stroke();
+}
 // === PLACEHOLDER — text added in Task 5 ===
 // === PLACEHOLDER — SVG added in Task 6 ===
 // === PLACEHOLDER — interaction added in Part B ===
