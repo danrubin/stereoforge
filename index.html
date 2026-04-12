@@ -2260,7 +2260,67 @@ document.getElementById('btn-export').addEventListener('click', async () => {
     btn.textContent = 'Export PNG';
   }
 });
-// === PLACEHOLDER — save/load added in Part C ===
+// === SAVE / LOAD ===
+
+document.getElementById('btn-save').addEventListener('click', () => {
+  const json = JSON.stringify(scene, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url;
+  a.download = 'stereoforge-project.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+});
+
+document.getElementById('btn-load').addEventListener('click', () => {
+  document.getElementById('load-file-input').click();
+});
+
+document.getElementById('load-file-input').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const loaded = JSON.parse(ev.target.result);
+      if (!loaded || typeof loaded !== 'object' || !Array.isArray(loaded.elements)) {
+        alert('Invalid project file — expected a StereoForge JSON.');
+        return;
+      }
+      pushUndo();
+      scene.preset       = loaded.preset       || 'ig-portrait';
+      scene.outputWidth  = loaded.outputWidth   || 1080;
+      scene.outputHeight = loaded.outputHeight  || 1350;
+      scene.bgColor      = loaded.bgColor       || '#000000';
+      scene.elements     = loaded.elements;
+      selectedIds = [];
+
+      // Sync topbar UI to loaded state
+      const presetSel = document.getElementById('preset-select');
+      presetSel.value = scene.preset;
+      if (scene.preset === 'custom') {
+        document.getElementById('custom-w').style.display = 'inline-block';
+        document.getElementById('custom-h').style.display = 'inline-block';
+        document.getElementById('custom-w').value = scene.outputWidth / 2;
+        document.getElementById('custom-h').value = scene.outputHeight;
+      } else {
+        document.getElementById('custom-w').style.display = 'none';
+        document.getElementById('custom-h').style.display = 'none';
+      }
+      document.getElementById('bg-color-input').value = scene.bgColor;
+
+      fitCanvas();
+      refreshPanel();
+    } catch (err) {
+      alert('Could not load project: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = ''; // allow re-loading the same file
+});
 
 // === INIT ===
 
