@@ -2210,7 +2210,52 @@ document.getElementById('btn-apply-custom-font').addEventListener('click', async
     status.textContent = `Error: ${err.message}`;
   }
 });
-// === PLACEHOLDER — export added in Part C ===
+// === PNG EXPORT ===
+
+// Pre-warm the SVG image cache and wait for all images to finish loading.
+// getSVGImage (Part A) is synchronous but image.onload fires async —
+// this helper ensures they're fully decoded before drawScene runs.
+function waitForSVGImages() {
+  const svgEls = scene.elements.filter(el => el.type === 'svg' && el.svgSource);
+  return Promise.all(svgEls.map(el => {
+    const img = getSVGImage(el);
+    if (!img) return Promise.resolve();
+    if (img.complete && img.naturalWidth > 0) return Promise.resolve();
+    return new Promise(resolve => {
+      const prev = img.onload;
+      img.onload = (...args) => { if (prev) prev(...args); resolve(); };
+      img.onerror = resolve;
+    });
+  }));
+}
+
+document.getElementById('btn-export').addEventListener('click', async () => {
+  const btn = document.getElementById('btn-export');
+  btn.disabled = true;
+  btn.textContent = 'Exporting…';
+
+  try {
+    await document.fonts.ready;
+    await waitForSVGImages();
+
+    const exportCanvas = document.createElement('canvas');
+    exportCanvas.width  = scene.outputWidth;
+    exportCanvas.height = scene.outputHeight;
+    const ctx = exportCanvas.getContext('2d');
+    drawScene(ctx, scene, { showDivider: false });
+
+    const url = exportCanvas.toDataURL('image/png');
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'stereoforge-export.png';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Export PNG';
+  }
+});
 // === PLACEHOLDER — save/load added in Part C ===
 
 // === INIT ===
