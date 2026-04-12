@@ -2067,7 +2067,43 @@ document.addEventListener('keydown', e => {
 
 // Call refreshPanel once on init to set initial state
 refreshPanel();
-// === PLACEHOLDER — fonts added in Part C ===
+
+// === FONT SYSTEM ===
+
+const FONT_FALLBACK = [
+  'Arial', 'Courier New', 'Georgia', 'Helvetica',
+  'Impact', 'Times New Roman', 'Trebuchet MS', 'Verdana',
+];
+
+function populateFontSelect(families) {
+  const select = document.getElementById('prop-font-family');
+  select.innerHTML = '';
+  for (const name of families) {
+    const opt = document.createElement('option');
+    opt.value = name;
+    opt.textContent = name;
+    select.appendChild(opt);
+  }
+}
+
+async function initLocalFonts() {
+  if (!window.queryLocalFonts) {
+    populateFontSelect(FONT_FALLBACK);
+    document.getElementById('font-api-note').classList.remove('hidden');
+    return;
+  }
+  try {
+    const fonts = await window.queryLocalFonts();
+    const families = [...new Set(fonts.map(f => f.family))].sort();
+    populateFontSelect(families.length > 0 ? families : FONT_FALLBACK);
+  } catch (_err) {
+    // Permission denied
+    populateFontSelect(FONT_FALLBACK);
+    document.getElementById('font-api-note').classList.remove('hidden');
+  }
+}
+
+// === PLACEHOLDER — Google Fonts + custom font added in Task 2 ===
 // === PLACEHOLDER — export added in Part C ===
 // === PLACEHOLDER — save/load added in Part C ===
 
@@ -2109,6 +2145,7 @@ window.addEventListener('DOMContentLoaded', () => {
   fitCanvas();
   startRenderLoop();
   window.addEventListener('resize', fitCanvas);
+  initLocalFonts();
 });
 </script>
 </body>
