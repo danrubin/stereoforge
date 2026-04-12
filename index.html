@@ -720,6 +720,11 @@
             <input type="number" id="prop-stroke-w" min="0.5" step="0.5">
           </div>
         </div>
+        <div class="panel-row" style="margin-top:4px;align-items:center;gap:6px;">
+          <div class="panel-field-label" style="white-space:nowrap;min-width:42px;">Opacity</div>
+          <input type="range" id="el-opacity" min="0" max="100" step="1" value="100" style="flex:1;">
+          <span id="el-opacity-val" style="min-width:30px;text-align:right;font-size:10px;color:var(--text-secondary);">100%</span>
+        </div>
       </div>
 
       <!-- Typography section (text elements only) -->
@@ -931,6 +936,7 @@ function createElement(type, overrides = {}) {
     svgSource: '',
     visible: true,
     locked: false,
+    opacity: 1,
   };
   return Object.assign(base, overrides);
 }
@@ -1098,6 +1104,8 @@ function drawScene(ctx, scn, opts = {}) {
  * Element.x is the center X within a single panel (0..outputWidth/2).
  */
 function drawElement(ctx, el, xOffset) {
+  ctx.save();
+  ctx.globalAlpha = el.opacity ?? 1;
   // drawElement body is filled in Tasks 4–6.
   // This stub just marks the center for verification.
   const cx = xOffset + el.x;
@@ -1108,6 +1116,7 @@ function drawElement(ctx, el, xOffset) {
   applyElementStyle(ctx, el);
   // dispatch to shape handlers (added Task 4–6)
   if (typeof dispatchDraw === 'function') dispatchDraw(ctx, el);
+  ctx.restore();
   ctx.restore();
 }
 
@@ -1872,6 +1881,13 @@ function refreshPanel() {
     document.getElementById('prop-fill-color').value   = el.fillColor;
     document.getElementById('prop-stroke-color').value = el.strokeColor;
     document.getElementById('prop-stroke-w').value     = el.strokeWidth;
+    const opacityInput = document.getElementById('el-opacity');
+    const opacityVal   = document.getElementById('el-opacity-val');
+    if (opacityInput && el) {
+      const pct = Math.round((el.opacity ?? 1) * 100);
+      opacityInput.value = pct;
+      opacityVal.textContent = pct + '%';
+    }
   }
 
   // Typography — show only for single text element
@@ -1942,6 +1958,14 @@ document.getElementById('prop-stroke-color').addEventListener('input', e => {
 document.getElementById('prop-stroke-w').addEventListener('change', e => {
   const v = parseFloat(e.target.value);
   if (!isNaN(v) && v >= 0) { pushUndo(); updateSelectedElements({ strokeWidth: v }); }
+});
+document.getElementById('el-opacity').addEventListener('input', e => {
+  const el = scene.elements.find(el => el.id === selectedIds[0]);
+  if (!el) return;
+  pushUndo();
+  el.opacity = parseInt(e.target.value) / 100;
+  document.getElementById('el-opacity-val').textContent = e.target.value + '%';
+  drawScene();
 });
 
 // ---- Element actions ----
