@@ -367,6 +367,12 @@
       color: var(--text-muted);
       text-align: center;
     }
+    #no-selection p { margin: 0; }
+
+    #btn-export:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
 
     /* Modal overlay */
     .modal-overlay {
@@ -635,7 +641,10 @@
     <!-- Right panel -->
     <div id="right-panel">
       <div id="panel-close-btn">▼ Close</div>
-      <div id="no-selection">Select an element to edit its properties</div>
+      <div id="no-selection">
+        <p id="msg-empty-canvas">Add an item to the canvas to get started.</p>
+        <p id="msg-no-selection" style="display:none">Select an element to edit its properties.</p>
+      </div>
 
       <!-- Transform section -->
       <div class="panel-section hidden" id="section-transform">
@@ -1810,7 +1819,24 @@ function refreshPanel() {
   const count = selectedIds.length;
   const sections = ['section-transform', 'section-depth', 'section-style', 'section-actions', 'section-typography'];
   sections.forEach(id => document.getElementById(id).classList.toggle('hidden', count === 0));
-  document.getElementById('no-selection').style.display = count === 0 ? '' : 'none';
+
+  const btnExport = document.getElementById('btn-export');
+  if (btnExport) {
+    btnExport.disabled = scene.elements.length === 0;
+  }
+
+  const noSel   = document.getElementById('no-selection');
+  const msgEmpty = document.getElementById('msg-empty-canvas');
+  const msgNone  = document.getElementById('msg-no-selection');
+  const selEl    = count > 0;
+  if (selEl) {
+    noSel.style.display = 'none';
+  } else {
+    noSel.style.display = '';
+    const isEmpty = scene.elements.length === 0;
+    msgEmpty.style.display = isEmpty ? 'block' : 'none';
+    msgNone.style.display  = isEmpty ? 'none'  : 'block';
+  }
 
   if (count === 0) { renderLayersList(); return; }
 
@@ -2455,6 +2481,7 @@ window.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('resize', fitCanvas);
   initLocalFonts();
   initGoogleFontsSelect();
+  document.getElementById('btn-export').disabled = scene.elements.length === 0;
 });
 
 // === MOBILE LAYOUT ===
