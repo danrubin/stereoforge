@@ -1111,7 +1111,64 @@ function drawArrow(ctx, el) {
   ctx.fill();
   if (el.fillStyle === 'outline' || el.fillStyle === 'both') ctx.stroke();
 }
-// === PLACEHOLDER — text added in Task 5 ===
+// === TEXT RENDERING ===
+
+function drawText(ctx, el) {
+  const style  = el.fontStyle  === 'italic' ? 'italic ' : '';
+  const weight = el.fontWeight || '400';
+  ctx.font          = `${style}${weight} ${el.fontSize}px "${el.fontFamily}"`;
+  ctx.textBaseline  = 'middle';
+  ctx.textAlign     = el.textAlign || 'center';
+
+  const lines   = (el.text || '').split('\n');
+  const lineH   = el.fontSize * (el.lineHeight || 1.2);
+  const totalH  = lines.length * lineH;
+  const startY  = -(totalH / 2) + lineH / 2;
+
+  lines.forEach((line, i) => {
+    const y = startY + i * lineH;
+    if (el.letterSpacing && el.letterSpacing !== 0) {
+      drawTextWithSpacing(ctx, el, line, y);
+    } else {
+      applyTextFillStroke(ctx, el, line, 0, y);
+    }
+  });
+}
+
+function drawTextWithSpacing(ctx, el, line, y) {
+  const chars = [...line];
+  // Measure total width to position correctly
+  let totalW = 0;
+  chars.forEach(ch => { totalW += ctx.measureText(ch).width + el.letterSpacing; });
+  if (chars.length) totalW -= el.letterSpacing; // no trailing space
+
+  let startX = 0;
+  if (el.textAlign === 'center') startX = -totalW / 2;
+  else if (el.textAlign === 'right') startX = -totalW;
+
+  // Temporarily override alignment to left for char-by-char
+  const savedAlign = ctx.textAlign;
+  ctx.textAlign = 'left';
+
+  let x = startX;
+  chars.forEach(ch => {
+    applyTextFillStroke(ctx, el, ch, x, y);
+    x += ctx.measureText(ch).width + el.letterSpacing;
+  });
+  ctx.textAlign = savedAlign;
+}
+
+function applyTextFillStroke(ctx, el, str, x, y) {
+  if (el.fillStyle === 'solid' || el.fillStyle === 'both') {
+    ctx.fillStyle = el.fillColor;
+    ctx.fillText(str, x, y);
+  }
+  if (el.fillStyle === 'outline' || el.fillStyle === 'both') {
+    ctx.strokeStyle  = el.strokeColor;
+    ctx.lineWidth    = el.strokeWidth;
+    ctx.strokeText(str, x, y);
+  }
+}
 // === PLACEHOLDER — SVG added in Task 6 ===
 // === PLACEHOLDER — interaction added in Part B ===
 // === PLACEHOLDER — fonts added in Part C ===
