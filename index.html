@@ -557,10 +557,11 @@
     <span class="wordmark">STEREOFORGE</span>
     <span class="topbar-label">Size:</span>
     <select class="topbar-select" id="preset-select">
-      <option value="ig-portrait">Instagram Portrait 1080×1350</option>
-      <option value="ig-square">Instagram Square 1080×1080</option>
-      <option value="twitter">Twitter/X 1200×675</option>
-      <option value="facebook">Facebook 1200×630</option>
+      <option value="ig-4-5">IG 4:5</option>
+      <option value="square">Square</option>
+      <option value="story">Story / Reel / TikTok</option>
+      <option value="hd-landscape">HD 16:9</option>
+      <option value="4k-landscape">4K 16:9</option>
       <option value="custom">Custom…</option>
     </select>
     <input class="topbar-number" type="number" id="custom-w" placeholder="W" min="100" max="6000">
@@ -833,10 +834,11 @@
 // === CONSTANTS ===
 
 const PRESETS = {
-  'ig-portrait': { w: 1080, h: 1350 },
-  'ig-square':   { w: 1080, h: 1080 },
-  'twitter':     { w: 1200, h: 675  },
-  'facebook':    { w: 1200, h: 630  },
+  'ig-4-5':        { w: 1080, h: 1350 },
+  'square':        { w: 1080, h: 1080 },
+  'story':         { w: 1080, h: 1920 },
+  'hd-landscape':  { w: 1920, h: 1080 },
+  '4k-landscape':  { w: 3840, h: 2160 },
 };
 
 const GOOGLE_FONTS = [
@@ -851,7 +853,7 @@ const GOOGLE_FONTS = [
 // === STATE ===
 
 let scene = {
-  preset: 'ig-portrait',
+  preset: 'ig-4-5',
   outputWidth: 1080,
   outputHeight: 1350,
   bgColor: '#000000',
@@ -2382,7 +2384,7 @@ document.getElementById('load-file-input').addEventListener('change', e => {
         return;
       }
       pushUndo();
-      scene.preset       = loaded.preset       || 'ig-portrait';
+      scene.preset       = loaded.preset       || 'ig-4-5';
       scene.outputWidth  = loaded.outputWidth   || 1080;
       scene.outputHeight = loaded.outputHeight  || 1350;
       scene.bgColor      = loaded.bgColor       || '#000000';
