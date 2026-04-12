@@ -883,7 +883,141 @@ function sendBack(id) {
   }
 }
 
-// === PLACEHOLDER — rendering added in Task 3 ===
+// === RENDERING ENGINE ===
+
+let animFrameId = null;
+
+function fitCanvas() {
+  const area = document.getElementById('canvas-area');
+  const availW = area.clientWidth - 20;
+  const availH = area.clientHeight - 20;
+  const scaleX = availW / scene.outputWidth;
+  const scaleY = availH / scene.outputHeight;
+  previewScale = Math.min(scaleX, scaleY, 1);
+
+  const canvas = document.getElementById('preview-canvas');
+  canvas.width  = scene.outputWidth;
+  canvas.height = scene.outputHeight;
+
+  const displayW = Math.round(scene.outputWidth  * previewScale);
+  const displayH = Math.round(scene.outputHeight * previewScale);
+  canvas.style.width  = displayW + 'px';
+  canvas.style.height = displayH + 'px';
+  canvas.style.position = 'absolute';
+  canvas.style.left = Math.round((area.clientWidth  - displayW) / 2) + 'px';
+  canvas.style.top  = Math.round((area.clientHeight - displayH) / 2) + 'px';
+}
+
+/** Convert mouse/touch event position to output-resolution canvas coordinates */
+function canvasPos(e) {
+  const canvas = document.getElementById('preview-canvas');
+  const rect = canvas.getBoundingClientRect();
+  const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+  const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+  return {
+    x: (clientX - rect.left)  * (scene.outputWidth  / rect.width),
+    y: (clientY - rect.top)   * (scene.outputHeight / rect.height),
+  };
+}
+
+/**
+ * Draw the full scene onto `ctx`.
+ * All coordinates are in output-resolution pixels.
+ * `xOffset` per element = panelOriginX ± depth/2
+ */
+function drawScene(ctx, scn, opts = {}) {
+  const { showDivider = true } = opts;
+  const W = scn.outputWidth;
+  const H = scn.outputHeight;
+  const halfW = W / 2;
+
+  // Background
+  ctx.fillStyle = scn.bgColor;
+  ctx.fillRect(0, 0, W, H);
+
+  for (const el of scn.elements) {
+    if (!el.visible) continue;
+
+    // Left panel — element shifts right by +depth/2 (positive = in front for wall-eyed)
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, 0, halfW, H);
+    ctx.clip();
+    drawElement(ctx, el, el.depth / 2);
+    ctx.restore();
+
+    // Right panel — element shifts left by -depth/2, origin at halfW
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(halfW, 0, halfW, H);
+    ctx.clip();
+    drawElement(ctx, el, halfW - el.depth / 2);
+    ctx.restore();
+  }
+
+  // Divider (preview only)
+  if (showDivider) {
+    ctx.save();
+    ctx.strokeStyle = '#444444';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(halfW, 0);
+    ctx.lineTo(halfW, H);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // L / R panel labels
+    ctx.font = '500 11px system-ui';
+    ctx.fillStyle = '#333333';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText('L', 6, 6);
+    ctx.textAlign = 'right';
+    ctx.fillText('R', W - 6, 6);
+    ctx.restore();
+  }
+}
+
+/**
+ * Draw a single element.
+ * `xOffset` = panelOriginX ± depth/2
+ * Element.x is the center X within a single panel (0..outputWidth/2).
+ */
+function drawElement(ctx, el, xOffset) {
+  // drawElement body is filled in Tasks 4–6.
+  // This stub just marks the center for verification.
+  const cx = xOffset + el.x;
+  const cy = el.y;
+  ctx.save();
+  ctx.translate(cx, cy);
+  if (el.rotation) ctx.rotate(el.rotation * Math.PI / 180);
+  applyElementStyle(ctx, el);
+  // dispatch to shape handlers (added Task 4–6)
+  if (typeof dispatchDraw === 'function') dispatchDraw(ctx, el);
+  ctx.restore();
+}
+
+function applyElementStyle(ctx, el) {
+  ctx.fillStyle   = el.fillColor;
+  ctx.strokeStyle = el.strokeColor;
+  ctx.lineWidth   = el.strokeWidth;
+  ctx.lineCap     = 'round';
+  ctx.lineJoin    = 'round';
+}
+
+function startRenderLoop() {
+  if (animFrameId) cancelAnimationFrame(animFrameId);
+  function frame() {
+    const canvas = document.getElementById('preview-canvas');
+    const ctx = canvas.getContext('2d');
+    drawScene(ctx, scene, { showDivider: true });
+    // Draw selection handles on top (added Part B)
+    if (typeof drawSelectionHandles === 'function') drawSelectionHandles(ctx);
+    animFrameId = requestAnimationFrame(frame);
+  }
+  animFrameId = requestAnimationFrame(frame);
+}
 // === PLACEHOLDER — shapes added in Task 4 ===
 // === PLACEHOLDER — text added in Task 5 ===
 // === PLACEHOLDER — SVG added in Task 6 ===
@@ -926,6 +1060,10 @@ window.addEventListener('DOMContentLoaded', () => {
   document.getElementById('bg-color-input').addEventListener('input', e => {
     scene.bgColor = e.target.value;
   });
+
+  fitCanvas();
+  startRenderLoop();
+  window.addEventListener('resize', fitCanvas);
 });
 </script>
 </body>
