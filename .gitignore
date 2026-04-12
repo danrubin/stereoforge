@@ -27,6 +27,9 @@ Thumbs.db
 # Brainstorm / superpowers session files
 .superpowers/
 
+# Git worktrees
+.worktrees/
+
 # Logs
 *.log
 npm-debug.log*
