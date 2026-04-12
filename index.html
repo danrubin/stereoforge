@@ -1708,7 +1708,169 @@ document.getElementById('preview-canvas').addEventListener('mousemove', e => {
   }
 });
 
-// === PLACEHOLDER — panel wiring added in Task 5 ===
+// === PANEL WIRING ===
+
+function refreshPanel() {
+  const count = selectedIds.length;
+  const sections = ['section-transform', 'section-depth', 'section-style', 'section-actions', 'section-typography'];
+  sections.forEach(id => document.getElementById(id).classList.toggle('hidden', count === 0));
+  document.getElementById('no-selection').style.display = count === 0 ? '' : 'none';
+
+  if (count === 0) { renderLayersList(); return; }
+
+  const el = count === 1 ? scene.elements.find(e => e.id === selectedIds[0]) : null;
+
+  // Transform
+  function valOrBlank(getter) {
+    const vals = selectedIds.map(id => getter(scene.elements.find(e => e.id === id)));
+    return vals.every(v => v === vals[0]) ? String(Math.round(vals[0])) : '';
+  }
+  document.getElementById('prop-x').value   = valOrBlank(e => e.x);
+  document.getElementById('prop-y').value   = valOrBlank(e => e.y);
+  document.getElementById('prop-w').value   = valOrBlank(e => e.width);
+  document.getElementById('prop-h').value   = valOrBlank(e => e.height);
+  document.getElementById('prop-rot').value = valOrBlank(e => e.rotation);
+
+  // Depth
+  const depthVal = valOrBlank(e => e.depth);
+  document.getElementById('prop-depth').value     = depthVal;
+  document.getElementById('prop-depth-num').value = depthVal;
+  const depthNum = depthVal !== '' ? parseFloat(depthVal) : 0;
+  const pct = ((depthNum + 100) / 200) * 100;
+  document.getElementById('depth-track').style.left  = `${Math.min(pct, 50)}%`;
+  document.getElementById('depth-track').style.width = `${Math.abs(pct - 50)}%`;
+  document.getElementById('depth-thumb').style.left  = `${pct}%`;
+  document.getElementById('depth-readout').textContent = depthVal !== '' ? `${depthVal} px` : '—';
+
+  // Style
+  if (el) {
+    document.querySelectorAll('#fill-style-toggle .style-toggle-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.style === el.fillStyle);
+    });
+    document.getElementById('prop-fill-color').value   = el.fillColor;
+    document.getElementById('prop-stroke-color').value = el.strokeColor;
+    document.getElementById('prop-stroke-w').value     = el.strokeWidth;
+  }
+
+  // Typography — show only for single text element
+  const isText = el && el.type === 'text';
+  document.getElementById('section-typography').classList.toggle('hidden', !isText);
+  if (isText) {
+    document.getElementById('prop-font-family').value    = el.fontFamily;
+    document.getElementById('prop-font-size').value      = el.fontSize;
+    document.getElementById('prop-font-weight').value    = el.fontWeight;
+    document.getElementById('prop-italic').checked       = el.fontStyle === 'italic';
+    document.getElementById('prop-letter-spacing').value = el.letterSpacing;
+    document.getElementById('prop-line-height').value    = el.lineHeight;
+    document.getElementById('prop-text-align').value     = el.textAlign;
+  }
+
+  // Visibility / lock buttons
+  if (el) {
+    document.getElementById('btn-vis').textContent  = el.visible ? '👁 Hide' : '👁 Show';
+    document.getElementById('btn-lock').textContent = el.locked  ? '🔒 Unlock' : '🔓 Lock';
+  }
+
+  renderLayersList();
+}
+
+// ---- Transform inputs ----
+function wireNumberInput(id, prop, parser = parseFloat) {
+  document.getElementById(id).addEventListener('change', e => {
+    const v = parser(e.target.value);
+    if (isNaN(v)) return;
+    pushUndo();
+    updateSelectedElements({ [prop]: v });
+    refreshPanel();
+  });
+}
+wireNumberInput('prop-x', 'x');
+wireNumberInput('prop-y', 'y');
+wireNumberInput('prop-w', 'width');
+wireNumberInput('prop-h', 'height');
+wireNumberInput('prop-rot', 'rotation');
+
+// ---- Depth ----
+function applyDepth(val) {
+  const v = parseFloat(val);
+  if (isNaN(v)) return;
+  pushUndo();
+  updateSelectedElements({ depth: v });
+  refreshPanel();
+}
+document.getElementById('prop-depth').addEventListener('input', e => applyDepth(e.target.value));
+document.getElementById('prop-depth-num').addEventListener('change', e => applyDepth(e.target.value));
+
+// ---- Style toggle ----
+document.querySelectorAll('#fill-style-toggle .style-toggle-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    pushUndo();
+    updateSelectedElements({ fillStyle: btn.dataset.style });
+    refreshPanel();
+  });
+});
+
+// ---- Colors ----
+document.getElementById('prop-fill-color').addEventListener('input', e => {
+  updateSelectedElements({ fillColor: e.target.value });
+});
+document.getElementById('prop-stroke-color').addEventListener('input', e => {
+  updateSelectedElements({ strokeColor: e.target.value });
+});
+document.getElementById('prop-stroke-w').addEventListener('change', e => {
+  const v = parseFloat(e.target.value);
+  if (!isNaN(v) && v >= 0) { pushUndo(); updateSelectedElements({ strokeWidth: v }); }
+});
+
+// ---- Element actions ----
+document.getElementById('btn-fwd').addEventListener('click', () => {
+  pushUndo();
+  selectedIds.forEach(id => bringForward(id));
+  refreshPanel();
+});
+document.getElementById('btn-back').addEventListener('click', () => {
+  pushUndo();
+  selectedIds.forEach(id => sendBack(id));
+  refreshPanel();
+});
+document.getElementById('btn-dup').addEventListener('click', () => {
+  duplicateSelected();
+  refreshPanel();
+});
+document.getElementById('btn-del').addEventListener('click', () => {
+  removeElements(selectedIds);
+  selectedIds = [];
+  refreshPanel();
+});
+document.getElementById('btn-vis').addEventListener('click', () => {
+  pushUndo();
+  const el = scene.elements.find(e => e.id === selectedIds[0]);
+  if (el) updateSelectedElements({ visible: !el.visible });
+  refreshPanel();
+});
+document.getElementById('btn-lock').addEventListener('click', () => {
+  pushUndo();
+  const el = scene.elements.find(e => e.id === selectedIds[0]);
+  if (el) updateSelectedElements({ locked: !el.locked });
+  refreshPanel();
+});
+document.getElementById('btn-clear').addEventListener('click', () => {
+  if (!confirm('Remove all elements?')) return;
+  pushUndo();
+  scene.elements = [];
+  selectedIds = [];
+  refreshPanel();
+});
+
+// ---- Undo / Redo keyboard shortcuts (more in Task 6) ----
+document.addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) {
+    e.preventDefault(); applyUndo(); refreshPanel();
+  }
+  if ((e.metaKey || e.ctrlKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+    e.preventDefault(); applyRedo(); refreshPanel();
+  }
+});
 // === PLACEHOLDER — layers + keyboard added in Task 6 ===
 // === PLACEHOLDER — fonts added in Part C ===
 // === PLACEHOLDER — export added in Part C ===
