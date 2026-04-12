@@ -458,6 +458,95 @@
     .layer-eye { font-size: 11px; flex-shrink: 0; cursor: pointer; }
     .layer-eye:hover { opacity: 0.7; }
     .layer-label { font-size: 10px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+
+    /* ── Mobile layout (< 768px) ── */
+    #toolbar-tab { display: none; } /* hidden on desktop */
+
+    @media (max-width: 767px) {
+      #workspace { position: relative; }
+
+      /* Canvas fills full width */
+      #canvas-area { margin-bottom: 44px; }
+
+      /* Toolbar: fixed bottom drawer, initially peeking with just the tab visible */
+      #toolbar {
+        position: fixed;
+        bottom: 0; left: 0; right: 0;
+        width: 100%;
+        height: auto;
+        max-height: 60vh;
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: center;
+        align-items: center;
+        padding: 8px 6px 10px;
+        border-right: none;
+        border-top: 1px solid var(--border);
+        z-index: 30;
+        transform: translateY(calc(100% - 32px));
+        transition: transform 0.22s ease;
+        overflow-y: auto;
+      }
+      #toolbar.open { transform: translateY(0); }
+
+      /* Tab visible above the collapsed toolbar */
+      #toolbar-tab {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: absolute;
+        top: -28px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-bottom: none;
+        border-radius: 6px 6px 0 0;
+        padding: 4px 16px;
+        cursor: pointer;
+        font-size: 9px;
+        letter-spacing: 0.5px;
+        color: var(--text-secondary);
+        white-space: nowrap;
+        z-index: 31;
+      }
+
+      /* Right panel: fixed bottom sheet */
+      #right-panel {
+        position: fixed;
+        bottom: 32px; /* sit above toolbar tab */
+        left: 0; right: 0;
+        width: 100%;
+        height: 55vh;
+        max-height: 55vh;
+        border-left: none;
+        border-top: 1px solid var(--border);
+        transform: translateY(100%);
+        transition: transform 0.22s ease;
+        z-index: 20;
+        overflow-y: auto;
+      }
+      #right-panel.open { transform: translateY(0); }
+
+      /* Close button for right panel on mobile */
+      #panel-close-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: sticky;
+        top: 0;
+        background: var(--panel);
+        border-bottom: 1px solid var(--border);
+        padding: 6px;
+        cursor: pointer;
+        font-size: 9px;
+        color: var(--text-muted);
+        z-index: 21;
+      }
+
+      .tool-btn { width: 36px; height: 36px; }
+      .toolbar-sep { width: 1px; height: 24px; margin: 0 4px; }
+    }
   </style>
 </head>
 <body>
@@ -490,6 +579,7 @@
 
     <!-- Left toolbar -->
     <div id="toolbar">
+      <div id="toolbar-tab">▲ Tools</div>
       <button class="tool-btn active" data-tool="select" title="Select (V)">
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
           <path d="M2 1.5L8.5 11l-2-3.5L2 1.5z" fill="currentColor"/>
@@ -543,6 +633,7 @@
 
     <!-- Right panel -->
     <div id="right-panel">
+      <div id="panel-close-btn">▼ Close</div>
       <div id="no-selection">Select an element to edit its properties</div>
 
       <!-- Transform section -->
@@ -2362,6 +2453,52 @@ window.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('resize', fitCanvas);
   initLocalFonts();
   initGoogleFontsSelect();
+});
+
+// === MOBILE LAYOUT ===
+
+function isMobile() { return window.innerWidth < 767; }
+
+function initMobile() {
+  // Toolbar tab toggle
+  document.getElementById('toolbar-tab').addEventListener('click', () => {
+    const toolbar = document.getElementById('toolbar');
+    const isOpen = toolbar.classList.toggle('open');
+    document.getElementById('toolbar-tab').textContent = isOpen ? '▼ Tools' : '▲ Tools';
+  });
+
+  // Close button on right panel
+  document.getElementById('panel-close-btn').addEventListener('click', () => {
+    document.getElementById('right-panel').classList.remove('open');
+  });
+
+  // Auto-open right panel when element is selected (fires after all mouseup handlers)
+  document.addEventListener('mouseup', () => {
+    if (isMobile() && selectedIds.length > 0) {
+      document.getElementById('right-panel').classList.add('open');
+    }
+  });
+
+  // Close toolbar when a tool is selected
+  document.querySelectorAll('.tool-btn[data-tool]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (isMobile()) {
+        document.getElementById('toolbar').classList.remove('open');
+        document.getElementById('toolbar-tab').textContent = '▲ Tools';
+      }
+    });
+  });
+}
+
+// Only run mobile init; desktop layout is handled by CSS
+if (isMobile()) initMobile();
+
+// Re-check on resize (handles orientation change)
+window.addEventListener('resize', () => {
+  if (!isMobile()) {
+    document.getElementById('toolbar').classList.remove('open');
+    document.getElementById('right-panel').classList.remove('open');
+  }
 });
 </script>
 </body>
