@@ -736,7 +736,197 @@
 </div>
 
 <script>
-// === PLACEHOLDER — JS sections added in Tasks 2–6 ===
+// === CONSTANTS ===
+
+const PRESETS = {
+  'ig-portrait': { w: 1080, h: 1350 },
+  'ig-square':   { w: 1080, h: 1080 },
+  'twitter':     { w: 1200, h: 675  },
+  'facebook':    { w: 1200, h: 630  },
+};
+
+const GOOGLE_FONTS = [
+  'Abril Fatface','Alfa Slab One','Archivo Black','Bebas Neue','Cinzel',
+  'Comfortaa','Dancing Script','Exo 2','Fredoka One','Josefin Sans',
+  'Lato','Libre Baskerville','Lobster','Merriweather','Montserrat',
+  'Noto Sans','Nunito','Open Sans','Oswald','PT Sans','Pacifico',
+  'Permanent Marker','Playfair Display','Poppins','PT Serif','Raleway',
+  'Righteous','Roboto','Source Sans Pro','Titan One','Trebuchet MS','Ubuntu',
+];
+
+// === STATE ===
+
+let scene = {
+  preset: 'ig-portrait',
+  outputWidth: 1080,
+  outputHeight: 1350,
+  bgColor: '#000000',
+  elements: [],
+};
+
+let undoStack = [];   // array of JSON strings
+let redoStack = [];
+let selectedIds = [];
+let activeTool = 'select';
+let previewScale = 1;
+
+// === UNDO / REDO ===
+
+function pushUndo() {
+  undoStack.push(JSON.stringify(scene));
+  if (undoStack.length > 50) undoStack.shift();
+  redoStack = [];
+}
+
+function applyUndo() {
+  if (!undoStack.length) return;
+  redoStack.push(JSON.stringify(scene));
+  scene = JSON.parse(undoStack.pop());
+  selectedIds = [];
+}
+
+function applyRedo() {
+  if (!redoStack.length) return;
+  undoStack.push(JSON.stringify(scene));
+  scene = JSON.parse(redoStack.pop());
+  selectedIds = [];
+}
+
+// === ELEMENT FACTORY ===
+
+function generateId() {
+  return Math.random().toString(36).slice(2, 10) +
+         Math.random().toString(36).slice(2, 10);
+}
+
+function createElement(type, overrides = {}) {
+  const halfW = scene.outputWidth / 4;
+  const base = {
+    id: generateId(),
+    type,
+    x: halfW,
+    y: scene.outputHeight / 2,
+    width: type === 'text' ? 400 : 200,
+    height: type === 'line' || type === 'arrow' ? 0 : 200,
+    rotation: 0,
+    depth: 0,
+    fillStyle: type === 'line' || type === 'arrow' ? 'outline' : 'both',
+    fillColor: '#ffffff',
+    strokeColor: '#ffffff',
+    strokeWidth: 2,
+    sides: 6,
+    text: 'Text',
+    fontFamily: 'Arial',
+    fontSize: 72,
+    fontWeight: '400',
+    fontStyle: 'normal',
+    letterSpacing: 0,
+    lineHeight: 1.2,
+    textAlign: 'center',
+    svgSource: '',
+    visible: true,
+    locked: false,
+  };
+  return Object.assign(base, overrides);
+}
+
+// === SCENE MUTATIONS ===
+
+function addElement(el) {
+  pushUndo();
+  scene.elements.push(el);
+}
+
+function removeElements(ids) {
+  if (!ids.length) return;
+  pushUndo();
+  scene.elements = scene.elements.filter(el => !ids.includes(el.id));
+  selectedIds = selectedIds.filter(id => !ids.includes(id));
+}
+
+function updateElement(id, props) {
+  const el = scene.elements.find(e => e.id === id);
+  if (el) Object.assign(el, props);
+}
+
+function updateSelectedElements(props) {
+  selectedIds.forEach(id => updateElement(id, props));
+}
+
+function duplicateSelected() {
+  if (!selectedIds.length) return;
+  pushUndo();
+  const newIds = [];
+  selectedIds.forEach(id => {
+    const el = scene.elements.find(e => e.id === id);
+    if (!el) return;
+    const copy = Object.assign({}, el, { id: generateId(), x: el.x + 20, y: el.y + 20 });
+    scene.elements.push(copy);
+    newIds.push(copy.id);
+  });
+  selectedIds = newIds;
+}
+
+function bringForward(id) {
+  const idx = scene.elements.findIndex(e => e.id === id);
+  if (idx < scene.elements.length - 1) {
+    [scene.elements[idx], scene.elements[idx + 1]] =
+    [scene.elements[idx + 1], scene.elements[idx]];
+  }
+}
+
+function sendBack(id) {
+  const idx = scene.elements.findIndex(e => e.id === id);
+  if (idx > 0) {
+    [scene.elements[idx], scene.elements[idx - 1]] =
+    [scene.elements[idx - 1], scene.elements[idx]];
+  }
+}
+
+// === PLACEHOLDER — rendering added in Task 3 ===
+// === PLACEHOLDER — shapes added in Task 4 ===
+// === PLACEHOLDER — text added in Task 5 ===
+// === PLACEHOLDER — SVG added in Task 6 ===
+// === PLACEHOLDER — interaction added in Part B ===
+// === PLACEHOLDER — fonts added in Part C ===
+// === PLACEHOLDER — export added in Part C ===
+// === PLACEHOLDER — save/load added in Part C ===
+
+// === INIT ===
+
+window.addEventListener('DOMContentLoaded', () => {
+  // Wire up preset dropdown
+  document.getElementById('preset-select').addEventListener('change', e => {
+    const v = e.target.value;
+    if (v === 'custom') {
+      document.getElementById('custom-w').style.display = 'inline-block';
+      document.getElementById('custom-h').style.display = 'inline-block';
+      return;
+    }
+    document.getElementById('custom-w').style.display = 'none';
+    document.getElementById('custom-h').style.display = 'none';
+    pushUndo();
+    scene.preset = v;
+    scene.outputWidth = PRESETS[v].w;
+    scene.outputHeight = PRESETS[v].h;
+    if (typeof fitCanvas === 'function') fitCanvas();
+  });
+
+  document.getElementById('custom-w').addEventListener('change', e => {
+    pushUndo();
+    scene.outputWidth = Math.max(100, parseInt(e.target.value) || 1080) * 2;
+    if (typeof fitCanvas === 'function') fitCanvas();
+  });
+  document.getElementById('custom-h').addEventListener('change', e => {
+    pushUndo();
+    scene.outputHeight = Math.max(100, parseInt(e.target.value) || 1080);
+    if (typeof fitCanvas === 'function') fitCanvas();
+  });
+
+  document.getElementById('bg-color-input').addEventListener('input', e => {
+    scene.bgColor = e.target.value;
+  });
+});
 </script>
 </body>
 </html>
