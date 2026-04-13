@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>StereoForge</title>
   <style>
     :root {
@@ -41,6 +41,8 @@
       display: flex;
       align-items: center;
       padding: 0 10px;
+      padding-top: env(safe-area-inset-top);
+      height: calc(38px + env(safe-area-inset-top));
       gap: 8px;
       flex-shrink: 0;
       z-index: 10;
@@ -429,36 +431,6 @@
     }
 
     /* Mobile layout */
-    @media (max-width: 768px) {
-      #toolbar {
-        position: fixed;
-        bottom: 0;
-        left: 0;
-        width: 100%;
-        height: auto;
-        flex-direction: row;
-        flex-wrap: wrap;
-        justify-content: center;
-        padding: 6px;
-        border-right: none;
-        border-top: 1px solid var(--border);
-        z-index: 20;
-      }
-      #workspace { flex-direction: column; }
-      #canvas-area { flex: 1; }
-      #right-panel {
-        position: fixed;
-        bottom: -100%;
-        left: 0;
-        width: 100%;
-        max-height: 50vh;
-        border-left: none;
-        border-top: 1px solid var(--border);
-        transition: bottom 0.25s ease;
-        z-index: 15;
-      }
-      #right-panel.open { bottom: 52px; }
-    }
 
     .hidden { display: none !important; }
     .layer-eye { font-size: 11px; flex-shrink: 0; cursor: pointer; }
@@ -471,8 +443,8 @@
     @media (max-width: 767px) {
       #workspace { position: relative; }
 
-      /* Canvas fills full width */
-      #canvas-area { margin-bottom: 44px; }
+      /* Canvas fills full width; leave room for toolbar tab + safe area */
+      #canvas-area { margin-bottom: calc(44px + env(safe-area-inset-bottom)); }
 
       /* Toolbar: fixed bottom drawer, initially peeking with just the tab visible */
       #toolbar {
@@ -486,10 +458,11 @@
         justify-content: center;
         align-items: center;
         padding: 8px 6px 10px;
+        padding-bottom: calc(10px + env(safe-area-inset-bottom));
         border-right: none;
         border-top: 1px solid var(--border);
         z-index: 30;
-        transform: translateY(calc(100% - 32px));
+        transform: translateY(calc(100% - 32px - env(safe-area-inset-bottom)));
         transition: transform 0.22s ease;
         overflow-y: auto;
       }
@@ -520,7 +493,7 @@
       /* Right panel: fixed bottom sheet */
       #right-panel {
         position: fixed;
-        bottom: 32px; /* sit above toolbar tab */
+        bottom: calc(32px + env(safe-area-inset-bottom)); /* sit above toolbar tab + safe area */
         left: 0; right: 0;
         width: 100%;
         height: 55vh;
