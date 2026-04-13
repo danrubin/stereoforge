@@ -655,6 +655,16 @@
     <!-- Right panel -->
     <div id="right-panel">
       <div id="panel-close-btn">▼ Close</div>
+
+      <!-- History (always visible) -->
+      <div class="panel-section" id="section-history">
+        <div class="panel-section-title">History</div>
+        <div class="action-btns">
+          <button class="action-btn" id="btn-undo">↩ Undo</button>
+          <button class="action-btn" id="btn-redo">↪ Redo</button>
+        </div>
+      </div>
+
       <div id="no-selection">
         <p id="msg-empty-canvas">Add an item to the canvas to get started.</p>
         <p id="msg-no-selection" style="display:none">Select an element to edit its properties.</p>
@@ -915,6 +925,9 @@ function applyRedo() {
   scene = JSON.parse(redoStack.pop());
   selectedIds = [];
 }
+
+document.getElementById('btn-undo').addEventListener('click', () => { applyUndo(); drawScene(); refreshPanel(); });
+document.getElementById('btn-redo').addEventListener('click', () => { applyRedo(); drawScene(); refreshPanel(); });
 
 // === ELEMENT FACTORY ===
 
