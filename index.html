@@ -171,6 +171,7 @@
       display: block;
       cursor: crosshair;
       image-rendering: pixelated;
+      touch-action: none;
     }
 
     /* ── Right panel ── */
@@ -1011,8 +1012,9 @@ function fitCanvas() {
 function canvasPos(e) {
   const canvas = document.getElementById('preview-canvas');
   const rect = canvas.getBoundingClientRect();
-  const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-  const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+  const touch = (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0]);
+  const clientX = touch ? touch.clientX : e.clientX;
+  const clientY = touch ? touch.clientY : e.clientY;
   return {
     x: (clientX - rect.left)  * (scene.outputWidth  / rect.width),
     y: (clientY - rect.top)   * (scene.outputHeight / rect.height),
@@ -1621,9 +1623,14 @@ function handleCanvasMouseDown(e) {
   }
 }
 
-document.getElementById('preview-canvas').addEventListener('mousedown', handleCanvasMouseDown);
+const previewCanvas = document.getElementById('preview-canvas');
+previewCanvas.addEventListener('mousedown', handleCanvasMouseDown);
+previewCanvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  handleCanvasMouseDown(e);
+}, { passive: false });
 
-document.addEventListener('mousemove', e => {
+function handleDragMove(e) {
   if (!dragState) return;
   const { x, y } = canvasPos(e);
 
@@ -1646,10 +1653,8 @@ document.addEventListener('mousemove', e => {
     const el = scene.elements.find(e => e.id === snap.id);
     const cos = Math.cos(snap.rotation * Math.PI / 180);
     const sin = Math.sin(snap.rotation * Math.PI / 180);
-    // Vector from anchor to mouse in world space
     const dx = x - anchorWorld.x;
     const dy = y - anchorWorld.y;
-    // Project onto element local axes
     const localX = dx * cos + dy * sin;
     const localY = -dx * sin + dy * cos;
 
@@ -1667,7 +1672,6 @@ document.addEventListener('mousemove', e => {
       newW = Math.max(10, Math.abs(localX));
     }
 
-    // New center = midpoint(anchor, dragged corner in world)
     const newCX = (anchorWorld.x + x) / 2;
     const newCY = (anchorWorld.y + y) / 2;
     updateElement(snap.id, { x: newCX, y: newCY, width: newW, height: newH });
@@ -1685,9 +1689,9 @@ document.addEventListener('mousemove', e => {
     updateElement(snap.id, { rotation: newRot });
     refreshPanel();
   }
-});
+}
 
-document.addEventListener('mouseup', e => {
+function handleDragEnd(e) {
   if (!dragState) return;
   if (dragState.type === 'rubber-band') {
     const rx = Math.min(dragState.startX, dragState.currentX);
@@ -1708,7 +1712,14 @@ document.addEventListener('mouseup', e => {
     }
   }
   dragState = null;
-});
+}
+
+document.addEventListener('mousemove', handleDragMove);
+document.addEventListener('mouseup', handleDragEnd);
+document.addEventListener('touchmove', e => {
+  if (dragState) { e.preventDefault(); handleDragMove(e); }
+}, { passive: false });
+document.addEventListener('touchend', handleDragEnd);
 
 // Draw rubber-band rect in drawScene. Called from inside drawScene (preview only).
 function drawRubberBand(ctx) {
