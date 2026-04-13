@@ -2576,13 +2576,6 @@ function initMobile() {
     setPanelOpen(false);
   });
 
-  // Auto-open right panel when element is selected (fires after all mouseup/touchend handlers)
-  const autoOpenPanel = () => {
-    if (isMobile() && selectedIds.length > 0) setPanelOpen(true);
-  };
-  document.addEventListener('mouseup', autoOpenPanel);
-  document.addEventListener('touchend', autoOpenPanel);
-
   // Close toolbar when a tool is selected
   document.querySelectorAll('.tool-btn[data-tool]').forEach(btn => {
     btn.addEventListener('click', () => {
