@@ -447,6 +447,7 @@
 
     /* ── Mobile layout (< 768px) ── */
     #toolbar-tab { display: none; } /* hidden on desktop */
+    #panel-tab    { display: none; } /* hidden on desktop */
 
     @media (max-width: 767px) {
       #workspace { position: relative; }
@@ -533,6 +534,27 @@
 
       /* Let the whole panel scroll; layers section expands naturally */
       #section-layers { flex: none; overflow-y: visible; }
+
+      /* Settings tab — sits at the panel seam above the toolbar peek */
+      #panel-tab {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: fixed;
+        right: 16px;
+        bottom: calc(44px + env(safe-area-inset-bottom));
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-bottom: none;
+        border-radius: 6px 6px 0 0;
+        padding: 4px 12px;
+        cursor: pointer;
+        font-size: 9px;
+        letter-spacing: 0.5px;
+        color: var(--text-secondary);
+        white-space: nowrap;
+        z-index: 25;
+      }
 
       .tool-btn { width: 36px; height: 36px; }
       .toolbar-sep { width: 1px; height: 24px; margin: 0 4px; }
@@ -626,6 +648,9 @@
         <textarea id="text-editor" rows="3"></textarea>
       </div>
     </div>
+
+    <!-- Settings tab (mobile only) -->
+    <div id="panel-tab">▲ Settings</div>
 
     <!-- Right panel -->
     <div id="right-panel">
@@ -2526,7 +2551,19 @@ window.addEventListener('DOMContentLoaded', () => {
 
 function isMobile() { return window.innerWidth < 767; }
 
+function setPanelOpen(open) {
+  document.getElementById('right-panel').classList.toggle('open', open);
+  const tab = document.getElementById('panel-tab');
+  if (tab) tab.textContent = open ? '▼ Settings' : '▲ Settings';
+}
+
 function initMobile() {
+  // Settings tab toggle
+  document.getElementById('panel-tab').addEventListener('click', () => {
+    const isOpen = document.getElementById('right-panel').classList.contains('open');
+    setPanelOpen(!isOpen);
+  });
+
   // Toolbar tab toggle
   document.getElementById('toolbar-tab').addEventListener('click', () => {
     const toolbar = document.getElementById('toolbar');
@@ -2536,15 +2573,15 @@ function initMobile() {
 
   // Close button on right panel
   document.getElementById('panel-close-btn').addEventListener('click', () => {
-    document.getElementById('right-panel').classList.remove('open');
+    setPanelOpen(false);
   });
 
-  // Auto-open right panel when element is selected (fires after all mouseup handlers)
-  document.addEventListener('mouseup', () => {
-    if (isMobile() && selectedIds.length > 0) {
-      document.getElementById('right-panel').classList.add('open');
-    }
-  });
+  // Auto-open right panel when element is selected (fires after all mouseup/touchend handlers)
+  const autoOpenPanel = () => {
+    if (isMobile() && selectedIds.length > 0) setPanelOpen(true);
+  };
+  document.addEventListener('mouseup', autoOpenPanel);
+  document.addEventListener('touchend', autoOpenPanel);
 
   // Close toolbar when a tool is selected
   document.querySelectorAll('.tool-btn[data-tool]').forEach(btn => {
@@ -2564,7 +2601,7 @@ if (isMobile()) initMobile();
 window.addEventListener('resize', () => {
   if (!isMobile()) {
     document.getElementById('toolbar').classList.remove('open');
-    document.getElementById('right-panel').classList.remove('open');
+    setPanelOpen(false);
   }
 });
 </script>
