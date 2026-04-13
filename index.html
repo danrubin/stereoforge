@@ -35,17 +35,20 @@
 
     /* ── Top bar ── */
     #topbar {
-      height: 38px;
       background: var(--panel);
       border-bottom: 1px solid var(--border);
       display: flex;
-      align-items: center;
-      padding: 0 10px;
-      padding-top: env(safe-area-inset-top);
-      height: calc(38px + env(safe-area-inset-top));
-      gap: 8px;
+      flex-direction: column;
+      padding: 6px 10px;
+      padding-top: calc(6px + env(safe-area-inset-top));
+      gap: 5px;
       flex-shrink: 0;
       z-index: 10;
+    }
+    .topbar-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
     .wordmark {
       font-size: 11px;
@@ -53,6 +56,11 @@
       letter-spacing: 1.5px;
       color: var(--text-primary);
       white-space: nowrap;
+    }
+    .version-label {
+      font-size: 9px;
+      color: var(--text-muted);
+      letter-spacing: 0.3px;
     }
     .topbar-sep { flex: 1; }
     .topbar-label {
@@ -88,7 +96,6 @@
       border: 1px solid var(--border-active);
       border-radius: 3px;
       padding: 1px;
-      background: none;
       cursor: pointer;
     }
     .btn {
@@ -536,25 +543,30 @@
 
   <!-- Top bar -->
   <div id="topbar">
-    <span class="wordmark">STEREOFORGE</span>
-    <span class="topbar-label">Size:</span>
-    <select class="topbar-select" id="preset-select">
-      <option value="ig-4-5">IG 4:5</option>
-      <option value="square">Square</option>
-      <option value="story">Story / Reel / TikTok</option>
-      <option value="hd-landscape">HD 16:9</option>
-      <option value="4k-landscape">4K 16:9</option>
-      <option value="custom">Custom…</option>
-    </select>
-    <input class="topbar-number" type="number" id="custom-w" placeholder="W" min="100" max="6000">
-    <input class="topbar-number" type="number" id="custom-h" placeholder="H" min="100" max="6000">
-    <span class="topbar-label">BG:</span>
-    <input type="color" class="topbar-color" id="bg-color-input" value="#000000" title="Background Color">
-    <div class="topbar-sep"></div>
-    <button class="btn btn-primary" id="btn-export">Export</button>
-    <button class="btn btn-secondary" id="btn-save">Save</button>
-    <button class="btn btn-secondary" id="btn-load">Load</button>
-    <input type="file" id="load-file-input" accept=".json" style="display:none">
+    <div class="topbar-row">
+      <span class="wordmark">STEREOFORGE</span>
+      <span class="version-label">v1.0</span>
+    </div>
+    <div class="topbar-row">
+      <span class="topbar-label">Size:</span>
+      <select class="topbar-select" id="preset-select">
+        <option value="ig-4-5">IG 4:5</option>
+        <option value="square">Square</option>
+        <option value="story">Story / Reel / TikTok</option>
+        <option value="hd-landscape">HD 16:9</option>
+        <option value="4k-landscape">4K 16:9</option>
+        <option value="custom">Custom…</option>
+      </select>
+      <input class="topbar-number" type="number" id="custom-w" placeholder="W" min="100" max="6000">
+      <input class="topbar-number" type="number" id="custom-h" placeholder="H" min="100" max="6000">
+      <span class="topbar-label">BG:</span>
+      <input type="color" class="topbar-color" id="bg-color-input" value="#000000" title="Background Color">
+      <div class="topbar-sep"></div>
+      <button class="btn btn-primary" id="btn-export">Export</button>
+      <button class="btn btn-secondary" id="btn-save">Save</button>
+      <button class="btn btn-secondary" id="btn-load">Load</button>
+      <input type="file" id="load-file-input" accept=".json" style="display:none">
+    </div>
   </div>
 
   <!-- Workspace -->
