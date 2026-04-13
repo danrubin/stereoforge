@@ -358,6 +358,15 @@
       cursor: pointer;
       user-select: none;
     }
+    .layer-drag-handle {
+      font-size: 13px;
+      line-height: 1;
+      color: var(--text-muted);
+      cursor: grab;
+      flex-shrink: 0;
+      touch-action: none;
+      padding: 0 1px;
+    }
     .layer-item:hover { border-color: var(--border-active); }
     .layer-item.selected { background: #3a7bd520; border-color: #3a7bd550; }
     .layer-icon { font-size: 9px; color: var(--text-muted); flex-shrink: 0; width: 12px; }
@@ -505,8 +514,8 @@
         bottom: calc(44px + env(safe-area-inset-bottom)); /* sit above toolbar tab + safe area */
         left: 0; right: 0;
         width: 100%;
-        height: 55vh;
-        max-height: 55vh;
+        height: 72vh;
+        max-height: 72vh;
         border-left: none;
         border-top: 1px solid var(--border);
         transform: translateY(100%);
@@ -1756,8 +1765,9 @@ document.addEventListener('mousemove', handleDragMove);
 document.addEventListener('mouseup', handleDragEnd);
 document.addEventListener('touchmove', e => {
   if (dragState) { e.preventDefault(); handleDragMove(e); }
+  if (layerTouchDragId) { e.preventDefault(); handleLayerTouchMove(e); }
 }, { passive: false });
-document.addEventListener('touchend', handleDragEnd);
+document.addEventListener('touchend', e => { handleDragEnd(e); handleLayerTouchEnd(); });
 
 // Draw rubber-band rect in drawScene. Called from inside drawScene (preview only).
 function drawRubberBand(ctx) {
@@ -2159,6 +2169,8 @@ document.getElementById('text-editor').addEventListener('blur', () => commitText
 // === LAYERS LIST ===
 
 let layerDragId = null;
+let layerTouchDragId = null;
+let layerTouchOverId = null;
 
 function renderLayersList() {
   const list = document.getElementById('layers-list');
@@ -2170,6 +2182,17 @@ function renderLayersList() {
     item.className = 'layer-item' + (selectedIds.includes(el.id) ? ' selected' : '');
     item.dataset.id = el.id;
     item.draggable = true;
+
+    const handle = document.createElement('span');
+    handle.className = 'layer-drag-handle';
+    handle.textContent = '⠿';
+    handle.title = 'Drag to reorder';
+    handle.addEventListener('touchstart', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      layerTouchDragId = el.id;
+      item.style.opacity = '0.5';
+    }, { passive: false });
 
     const eye = document.createElement('span');
     eye.className = 'layer-eye';
@@ -2188,6 +2211,7 @@ function renderLayersList() {
     label.textContent = el.locked ? `🔒 ${typeLabel}` : typeLabel;
     label.style.opacity = el.visible ? '1' : '0.4';
 
+    item.appendChild(handle);
     item.appendChild(eye);
     item.appendChild(label);
 
@@ -2221,6 +2245,52 @@ function renderLayersList() {
 
     list.appendChild(item);
   }
+}
+
+function handleLayerTouchMove(e) {
+  if (!layerTouchDragId) return;
+  const touch = e.touches[0];
+  const target = document.elementFromPoint(touch.clientX, touch.clientY);
+  const targetItem = target && target.closest('.layer-item');
+  const targetId = targetItem ? targetItem.dataset.id : null;
+
+  // Clear previous highlight
+  if (layerTouchOverId && layerTouchOverId !== targetId) {
+    const prev = document.querySelector(`.layer-item[data-id="${layerTouchOverId}"]`);
+    if (prev) prev.style.borderTop = '';
+  }
+
+  layerTouchOverId = null;
+  if (targetId && targetId !== layerTouchDragId) {
+    targetItem.style.borderTop = '2px solid var(--accent)';
+    layerTouchOverId = targetId;
+  }
+}
+
+function handleLayerTouchEnd() {
+  if (!layerTouchDragId) return;
+
+  // Clear highlight and opacity
+  if (layerTouchOverId) {
+    const over = document.querySelector(`.layer-item[data-id="${layerTouchOverId}"]`);
+    if (over) over.style.borderTop = '';
+  }
+  const draggedItem = document.querySelector(`.layer-item[data-id="${layerTouchDragId}"]`);
+  if (draggedItem) draggedItem.style.opacity = '';
+
+  if (layerTouchOverId) {
+    const fromIdx = scene.elements.findIndex(e => e.id === layerTouchDragId);
+    const toIdx   = scene.elements.findIndex(e => e.id === layerTouchOverId);
+    if (fromIdx !== -1 && toIdx !== -1) {
+      pushUndo();
+      const [moved] = scene.elements.splice(fromIdx, 1);
+      scene.elements.splice(toIdx, 0, moved);
+      refreshPanel();
+    }
+  }
+
+  layerTouchDragId = null;
+  layerTouchOverId = null;
 }
 
 // === KEYBOARD SHORTCUTS ===
