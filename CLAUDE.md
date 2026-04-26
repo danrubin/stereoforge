@@ -4,16 +4,20 @@ Single-file HTML stereoscopic illustration creator. No framework, no build step 
 
 ## Current Status
 
-**Design phase complete. Part A implementation plan written. `index.html` not yet created.**
+**All three plans written. `index.html` not yet created. Ready to execute.**
 
 ### What exists
 - `docs/superpowers/specs/2026-04-11-stereoforge-design.md` — full approved design spec
-- `docs/superpowers/plans/2026-04-11-stereoforge-part-a.md` — Part A implementation plan (Tasks 1–6: HTML shell, state, canvas engine, shapes, text, SVG)
+- `docs/superpowers/plans/2026-04-11-stereoforge-part-a.md` — Part A: Foundation (Tasks 1–6: HTML shell, state, canvas engine, shapes, text, SVG)
+- `docs/superpowers/plans/2026-04-11-stereoforge-part-b.md` — Part B: Interaction + UI (Tasks 1–6: tool selection, hit testing, drag, resize/rotate handles, right panel, layers + keyboard)
+- `docs/superpowers/plans/2026-04-11-stereoforge-part-c.md` — Part C: Features + Polish (Tasks 1–5: local fonts, Google Fonts + custom, PNG export, save/load, mobile layout)
 
 ### What's next
-1. Write Part B plan (Interaction + UI): tool selection, hit testing, drag, resize/rotate handles, right panel wiring, layers list
-2. Write Part C plan (Features): font system, PNG export, save/load, keyboard shortcuts, presets, mobile layout
-3. Execute the plans (execution approach TBD — subagent-driven or inline)
+Execute the plans in order: **Part A → Part B → Part C**. All three plans build a single `index.html` by sequentially replacing `// === PLACEHOLDER — X ===` comment markers. The order is strict — Part B depends on the DOM and JS scaffold Part A creates; Part C depends on `refreshPanel()` and other functions from Part B.
+
+**Recommended execution approach:** Use the `superpowers:subagent-driven-development` skill. Run one task at a time, review output, proceed.
+
+**Testing requires Chrome** (for `queryLocalFonts`, and to verify canvas rendering with DevTools).
 
 ## Key Architectural Decisions
 
@@ -28,6 +32,13 @@ Single-file HTML stereoscopic illustration creator. No framework, no build step 
 ## Plan Split
 
 This project is split into 3 sub-plans to stay within the ~1500-line plan budget:
-- **Part A** — Foundation (done)
-- **Part B** — Interaction + UI (6 tasks): tool selection + element placement, hit testing + drag, resize/rotate handles, right panel transform/depth/style, right panel typography, layers list
-- **Part C** — Features + Polish (6 tasks): font system, PNG export, save/load, keyboard shortcuts, output presets + BG picker, mobile layout
+- **Part A** — Foundation (6 tasks): HTML/CSS shell, scene state + undo/redo, canvas rendering engine, shape rendering, text rendering, SVG rendering. Also wires: output preset dropdown, BG color picker, window resize → fitCanvas.
+- **Part B** — Interaction + UI (6 tasks): tool selection + element placement, hit testing + click selection, move drag + rubber-band, resize/rotate handles, right panel (transform/depth/style/actions + undo/redo keys), layers list + typography + all keyboard shortcuts.
+- **Part C** — Features + Polish (5 tasks): local font system (queryLocalFonts), Google Fonts + custom font injection, PNG export, project save/load, mobile layout.
+
+## Execution Notes
+
+- Each task replaces a `// === PLACEHOLDER — X added in Part Y ===` comment in `index.html` (except Part A Task 1 which creates the file).
+- **Part B Task 3** replaces the `handleCanvasMouseDown` function written in Task 2 — this is an upgrade, not a placeholder replacement. The plan explains this explicitly.
+- **Part B Task 4** upgrades the `// Check handles first (populated in Task 4; no-op here)` comment inside `handleCanvasMouseDown` with live handle detection. This requires that Part B Task 3's version of the function is in place first.
+- Do not skip tasks or reorder within a part — each task's code depends on the previous task's placeholder structure.
